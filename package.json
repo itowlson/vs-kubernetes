@@ -1,0 +1,39 @@
+{
+    "name": "vs-kubernetes",
+    "displayName": "vs-kubernetes",
+    "description": "An extension for interacting with the Kubernetes cluster orcheastrator in Visual Studio Code",
+    "version": "0.0.1",
+    "publisher": "BrendanBurns",
+    "engines": {
+        "vscode": "^1.0.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "activationEvents": [
+        "onCommand:extension.vsKubernetesCreate",
+        "onCommand:extension.vsKubernetesDelete"
+    ],
+    "main": "./extension",
+    "contributes": {
+        "commands": [{
+            "command": "extension.vsKubernetesCreate",
+            "title": "Kubernetes Create"
+        },{
+            "command": "extension.vsKubernetesDelete",
+            "title": "Kubernetes Delete"
+        },{
+            "command": "extension.vsKubernetesApply",
+            "title": "Kubernetes Apply"
+        }]
+    },
+    "scripts": {
+        "postinstall": "node ./node_modules/vscode/bin/install"
+    },
+    "dependencies": {
+        "shelljs": ""
+    },
+    "devDependencies": {
+        "vscode": "^0.11.0"
+    }
+}
