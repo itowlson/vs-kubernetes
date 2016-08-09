@@ -27,15 +27,131 @@ function activate(context) {
         maybeRunKubernetesCommandForActiveWindow('apply -f ');
     });
     context.subscriptions.push(disposable);
+
+    disposable = vscode.commands.registerCommand('extension.vsKubernetesExplain', function () {
+        explainActiveWindow();
+    });
+    context.subscriptions.push(disposable);
+
+    vscode.languages.registerHoverProvider({ language: 'json', scheme: 'file' }, {
+        provideHover(document, position, token) {
+            var range = document.getWordRangeAtPosition(position);
+            var txt = document.getText(range);
+
+            var line = document.lineAt(position.line);
+            var ix = line.text.indexOf(":");
+            var property = line.text.substring(line.firstNonWhitespaceCharacterIndex, ix);
+            var field = JSON.parse(property);
+            
+            var parentLine = findParent(document, position.line - 1);
+            while (parentLine != -1) {
+                var parentProperty = findProperty(document.lineAt(parentLine));
+                field = JSON.parse(parentProperty) + '.' + field;
+                parentLine = findParent(document, parentLine - 1);
+            }
+
+            if (field == 'kind') {
+                field = '';
+            }
+            var body = document.getText();
+            return {
+                'then': function(fn) {
+                    explain(body, field, function(msg) {
+                        fn(new vscode.Hover(
+                            {
+                                'language': 'json',
+                                'value': msg
+                            }));
+                    });
+                }
+            };
+        }
+    });
 }
 
+function findProperty(line) {
+    var ix = line.text.indexOf(":");
+    return line.text.substring(line.firstNonWhitespaceCharacterIndex, ix);
+};
+
+function findParent(document, line) {
+    var count = 1;
+    while (line >= 0) {
+        var txt = document.lineAt(line);
+        if (txt.text.indexOf('}') != -1) {
+            count = count + 1;
+        }
+        if (txt.text.indexOf('{') != -1) {
+            count = count - 1;
+            if (count == 0) {
+                break;
+            }
+        }
+        line = line - 1;
+    }
+    while (line >= 0) {
+        var txt = document.lineAt(line);
+        if (txt.text.indexOf(':') != -1) {
+            return line;
+        }
+        line = line - 1;
+    }
+    return line;
+};
+
+function explain(text, field, fn) {
+    var obj = JSON.parse(text);
+    if (!obj.kind) {
+        vscode.window.showErrorMessage("Not a Kubernetes API Object!");
+        return;
+    }
+    var ref = obj.kind;
+    if (field && field.length > 0) {
+        ref = ref + "." + field;
+    }
+    kubectlInternal(' explain ' + ref, function(result, stdout, stderr) {
+        if (result != 0) {
+            vscode.window.showErrorMessage("Failed to run explain: " + stderr);
+            return;
+        }
+        fn(stdout);
+    });
+}
+
+function explainActiveWindow() {
+    var editor = vscode.window.activeTextEditor;
+    if (!editor) {
+        vscode.window.showErrorMessage("No active editor!");
+        return; // No open text editor
+    }
+    var text = editor.document.getText();
+    if (text.length == 0) {
+        return;
+    }
+    explain(text, '', function(msg) {
+        vscode.window.showInformationMessage(msg);
+    });
+}
+
+// Runs a command for the text in the active window.
+// Expects that it can append a filename to 'command' to create a complete kubectl command.
+//
+// @parameter command string The command to run
 function maybeRunKubernetesCommandForActiveWindow(command) {
     var editor = vscode.window.activeTextEditor;
     if (!editor) {
         vscode.window.showErrorMessage("No active editor!");
         return; // No open text editor
     }
-
+    if (editor.selection) {
+        var text = editor.document.getText(editor.selection);
+        if (text.length > 0) {
+            var proc = kubectl(command + "-");
+            proc.stdin.write(text);
+            proc.stdin.end();
+            return;
+        }
+    }
     if (editor.document.isUntitled) {
         // TODO: Support create without saving
         vscode.window.showErrorMessage("You need to save this as a file somewhere");
@@ -70,8 +186,12 @@ function kubectlDone(result, stdout, stderr) {
 };
 
 function kubectl(command) {
+    kubectlInternal(command, kubectlDone);
+};
+
+function kubectlInternal(command, handler) {
     var shell = require('shelljs');
-    var result = shell.exec('kubectl ' + command, kubectlDone);
+    return shell.exec('kubectl ' + command, handler);
 };
 
 exports.activate = activate;
