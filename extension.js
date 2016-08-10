@@ -2,6 +2,8 @@
 // Import the module and reference it with the alias vscode in your code below
 var vscode = require('vscode');
 
+var explainActive = false;
+
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 function activate(context) {
@@ -35,12 +37,22 @@ function activate(context) {
 
     vscode.languages.registerHoverProvider({ language: 'json', scheme: 'file' }, {
         provideHover(document, position, token) {
-            var range = document.getWordRangeAtPosition(position);
-            var txt = document.getText(range);
-
-            var line = document.lineAt(position.line);
-            var ix = line.text.indexOf(":");
-            var property = line.text.substring(line.firstNonWhitespaceCharacterIndex, ix);
+            if (!explainActive) {
+                return null;
+            }
+            var body = document.getText();
+            var obj = {};
+            try {
+                obj = JSON.parse(body);
+            } catch(err) {
+                // Bad JSON
+                return null;
+            }
+            // Not a k8s object.
+            if (!obj.kind) {
+                return null;
+            }
+            var property = findProperty(document.lineAt(position.line));
             var field = JSON.parse(property);
             
             var parentLine = findParent(document, position.line - 1);
@@ -53,10 +65,9 @@ function activate(context) {
             if (field == 'kind') {
                 field = '';
             }
-            var body = document.getText();
             return {
                 'then': function(fn) {
-                    explain(body, field, function(msg) {
+                    explain(obj, field, function(msg) {
                         fn(new vscode.Hover(
                             {
                                 'language': 'json',
@@ -99,8 +110,7 @@ function findParent(document, line) {
     return line;
 };
 
-function explain(text, field, fn) {
-    var obj = JSON.parse(text);
+function explain(obj, field, fn) {
     if (!obj.kind) {
         vscode.window.showErrorMessage("Not a Kubernetes API Object!");
         return;
@@ -120,18 +130,55 @@ function explain(text, field, fn) {
 
 function explainActiveWindow() {
     var editor = vscode.window.activeTextEditor;
+    var bar = initStatusBar(editor);
     if (!editor) {
         vscode.window.showErrorMessage("No active editor!");
+        bar.hide();
         return; // No open text editor
     }
-    var text = editor.document.getText();
-    if (text.length == 0) {
-        return;
+    explainActive = !explainActive;
+    if (explainActive) {
+        vscode.window.showInformationMessage("Kubernetes API explain activated.");
+        bar.show();
+    } else {
+        vscode.window.showInformationMessage("Kubernetes API explain deactivated.");
+        bar.hide();
     }
-    explain(text, '', function(msg) {
-        vscode.window.showInformationMessage(msg);
-    });
+};
+
+
+var statusBarItem;
+
+function initStatusBar(editor) {
+    if (!statusBarItem) {
+        statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+        statusBarItem.text = "kubernetes-api-explain";    
+    }
+
+    return statusBarItem;
 }
+
+//function activate() {
+//    
+    /*var editor = vscode.window.activeTextEditor;
+    var bar = initStatusBar(editor);
+    if (!bar) { return; }
+    var doc = editor.document;
+
+    // Only update status if an MarkDown file
+    if (doc.languageId === "json") {
+        bar.show();
+    }*/
+//}
+
+//function deactivate() {
+//    vscode.window.showInformationMessage("KUbernetes API explain deactivated.");
+/*    var editor = vscode.window.activeTextEditor;
+    var bar = initStatusBar(editor);
+    if (!bar) { return; }
+    bar.hide();
+    */
+//}
 
 // Runs a command for the text in the active window.
 // Expects that it can append a filename to 'command' to create a complete kubectl command.
