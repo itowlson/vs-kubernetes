@@ -1,20 +1,22 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 var vscode = require('vscode');
+var path = require('path');
+var fs = require('fs');
 
 var explainActive = false;
+
+var shellLib = null;
+function shell() {
+    if (shellLib == null) {
+        shellLib = require('shelljs');
+    }
+    return shellLib;
+};
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 function activate(context) {
-
-    // Use the console to output diagnostic information (console.log) and errors (console.error)
-    // This line of code will only be executed once when your extension is activated
-    console.log('Congratulations, your extension "vs-kubernetes" is now active!');
-
-    // The command has been defined in the package.json file
-    // Now provide the implementations of the command with  registerCommand
-    // The commandId parameter must match the command field in package.json
     var disposable = vscode.commands.registerCommand('extension.vsKubernetesCreate', function () {
         maybeRunKubernetesCommandForActiveWindow('create -f ');
     });
@@ -30,54 +32,63 @@ function activate(context) {
     });
     context.subscriptions.push(disposable);
 
-    disposable = vscode.commands.registerCommand('extension.vsKubernetesExplain', function () {
-        explainActiveWindow();
-    });
+    disposable = vscode.commands.registerCommand('extension.vsKubernetesExplain', explainActiveWindow);
+    context.subscriptions.push(disposable);
+
+    disposable = vscode.commands.registerCommand('extension.vsKubernetesLoad', loadKubernetes);
+    context.subscriptions.push(disposable);
+
+    disposable = vscode.commands.registerCommand('extension.vsKubernetesGet', getKubernetes);
+    context.subscriptions.push(disposable);
+
+    disposable = vscode.commands.registerCommand('extension.vsKubernetesRun', runKubernetes);
     context.subscriptions.push(disposable);
 
     vscode.languages.registerHoverProvider({ language: 'json', scheme: 'file' }, {
-        provideHover(document, position, token) {
-            if (!explainActive) {
-                return null;
-            }
-            var body = document.getText();
-            var obj = {};
-            try {
-                obj = JSON.parse(body);
-            } catch(err) {
-                // Bad JSON
-                return null;
-            }
-            // Not a k8s object.
-            if (!obj.kind) {
-                return null;
-            }
-            var property = findProperty(document.lineAt(position.line));
-            var field = JSON.parse(property);
-            
-            var parentLine = findParent(document, position.line - 1);
-            while (parentLine != -1) {
-                var parentProperty = findProperty(document.lineAt(parentLine));
-                field = JSON.parse(parentProperty) + '.' + field;
-                parentLine = findParent(document, parentLine - 1);
-            }
-
-            if (field == 'kind') {
-                field = '';
-            }
-            return {
-                'then': function(fn) {
-                    explain(obj, field, function(msg) {
-                        fn(new vscode.Hover(
-                            {
-                                'language': 'json',
-                                'value': msg
-                            }));
-                    });
-                }
-            };
-        }
+        provideHover: provideHover
     });
+}
+
+function provideHover(document, position, token) {
+    if (!explainActive) {
+        return null;
+    }
+    var body = document.getText();
+    var obj = {};
+    try {
+        obj = JSON.parse(body);
+    } catch (err) {
+        // Bad JSON
+        return null;
+    }
+    // Not a k8s object.
+    if (!obj.kind) {
+        return null;
+    }
+    var property = findProperty(document.lineAt(position.line));
+    var field = JSON.parse(property);
+
+    var parentLine = findParent(document, position.line - 1);
+    while (parentLine != -1) {
+        var parentProperty = findProperty(document.lineAt(parentLine));
+        field = JSON.parse(parentProperty) + '.' + field;
+        parentLine = findParent(document, parentLine - 1);
+    }
+
+    if (field == 'kind') {
+        field = '';
+    }
+    return {
+        'then': function (fn) {
+            explain(obj, field, function (msg) {
+                fn(new vscode.Hover(
+                    {
+                        'language': 'json',
+                        'value': msg
+                    }));
+            });
+        }
+    };
 }
 
 function findProperty(line) {
@@ -119,7 +130,7 @@ function explain(obj, field, fn) {
     if (field && field.length > 0) {
         ref = ref + "." + field;
     }
-    kubectlInternal(' explain ' + ref, function(result, stdout, stderr) {
+    kubectlInternal(' explain ' + ref, function (result, stdout, stderr) {
         if (result != 0) {
             vscode.window.showErrorMessage("Failed to run explain: " + stderr);
             return;
@@ -152,33 +163,11 @@ var statusBarItem;
 function initStatusBar(editor) {
     if (!statusBarItem) {
         statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
-        statusBarItem.text = "kubernetes-api-explain";    
+        statusBarItem.text = "kubernetes-api-explain";
     }
 
     return statusBarItem;
 }
-
-//function activate() {
-//    
-    /*var editor = vscode.window.activeTextEditor;
-    var bar = initStatusBar(editor);
-    if (!bar) { return; }
-    var doc = editor.document;
-
-    // Only update status if an MarkDown file
-    if (doc.languageId === "json") {
-        bar.show();
-    }*/
-//}
-
-//function deactivate() {
-//    vscode.window.showInformationMessage("KUbernetes API explain deactivated.");
-/*    var editor = vscode.window.activeTextEditor;
-    var bar = initStatusBar(editor);
-    if (!bar) { return; }
-    bar.hide();
-    */
-//}
 
 // Runs a command for the text in the active window.
 // Expects that it can append a filename to 'command' to create a complete kubectl command.
@@ -224,12 +213,27 @@ function maybeRunKubernetesCommandForActiveWindow(command) {
     }
 }
 
+function loadKubernetes() {
+    vscode.window.showInputBox({
+        prompt: "What resource do you want to load?",
+    }).then(function(value) {
+        kubectlInternal(" -o json get " + value, function(result, stdout, stderr) {
+            console.log(stdout);
+            if (result != 0) {
+                vscode.window.showErrorMessage("Get command failed: " + stderr);
+                return;
+            }
+            vscode.window.showTextDocument(stdout);
+        })
+    });
+}
+
 function kubectlDone(result, stdout, stderr) {
     if (result != 0) {
         vscode.window.showErrorMessage("Create command failed: " + stderr);
         return;
     }
-    vscode.window.showInformationMessage('output: ' + stdout);
+    vscode.window.showInformationMessage('Output: ' + stdout);
 };
 
 function kubectl(command) {
@@ -237,8 +241,49 @@ function kubectl(command) {
 };
 
 function kubectlInternal(command, handler) {
-    var shell = require('shelljs');
-    return shell.exec('kubectl ' + command, handler);
+    return shell().exec('kubectl ' + command, handler);
+};
+
+function getKubernetes() {
+    maybeRunKubernetesCommandForActiveWindow('get -f ');
+};
+
+// This is duplicated from vs-docker, find a way to re-use
+function findVersion() {
+    // No .git dir, use 'latest'
+    // TODO: use 'git rev-parse' to detect upstream directories
+    if (!fs.existsSync(path.join(vscode.workspace.rootPath, ".git"))) {
+        return 'latest';
+    }
+
+    var execOpts = { cwd: vscode.workspace.rootPath};
+    var result = shell().exec('git log --pretty=format:\'%h\' -n 1', execOpts);
+    if (result.code != 0) {
+        vscode.window.showErrorMessage('git log returned: ' + result.code);
+        return 'error';
+    }
+    version = result.stdout;
+
+    result = shell().exec('git status --porcelain', execOpts);
+    if (result.code != 0) {
+        vscode.window.showErrorMessage('git status returned: ' + result.code);
+        return 'error';
+    }
+    if (result.stdout != '') {
+        version += '-dirty';
+    }
+    return version;
+}
+
+function runKubernetes() {
+    var name = path.basename(vscode.workspace.rootPath);
+    var version = findVersion();
+    var image = name + ":" + version;
+    var user = vscode.workspace.getConfiguration().get("vsdocker.imageUser", null);
+    if (user) {
+        image = user + '/' + image;
+    }
+    kubectlInternal(' run ' + name + ' --image=' + image, kubectlDone);
 };
 
 exports.activate = activate;

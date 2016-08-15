@@ -14,7 +14,10 @@
         "onCommand:extension.vsKubernetesCreate",
         "onCommand:extension.vsKubernetesDelete",
         "onCommand:extension.vsKubernetesApply",
-        "onCommand:extension.vsKubernetesExplain"
+        "onCommand:extension.vsKubernetesExplain",
+        "onCommand:extension.vsKubernetesLoad",
+        "onCommand:extension.vsKubernetesGet",
+        "onCommand:extension.vsKubernetesRun"
     ],
     "main": "./extension",
     "contributes": {
@@ -30,6 +33,15 @@
         },{
             "command": "extension.vsKubernetesExplain",
             "title": "Kubernetes Explain"
+        },{
+            "command": "extension.vsKubernetesLoad",
+            "title": "Kubernetes Load"
+        },{
+            "command": "extension.vsKubernetesGet",
+            "title": "Kubernetes Get"
+        },{
+            "command": "extension.vsKubernetesRun",
+            "title": "Kubernetes Run"
         }]
     },
     "scripts": {
