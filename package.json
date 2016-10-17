@@ -17,7 +17,8 @@
         "onCommand:extension.vsKubernetesExplain",
         "onCommand:extension.vsKubernetesLoad",
         "onCommand:extension.vsKubernetesGet",
-        "onCommand:extension.vsKubernetesRun"
+        "onCommand:extension.vsKubernetesRun",
+        "onCommand:extension.vsKubernetesLogs"
     ],
     "main": "./extension",
     "contributes": {
@@ -42,6 +43,9 @@
         },{
             "command": "extension.vsKubernetesRun",
             "title": "Kubernetes Run"
+        }, {
+            "command": "extension.vsKubernetesLogs",
+            "title": "Kubernetes Logs"
         }]
     },
     "scripts": {

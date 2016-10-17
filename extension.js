@@ -3,6 +3,7 @@
 var vscode = require('vscode');
 var path = require('path');
 var fs = require('fs');
+var yaml = require('js-yaml');
 
 var explainActive = false;
 
@@ -44,7 +45,13 @@ function activate(context) {
     disposable = vscode.commands.registerCommand('extension.vsKubernetesRun', runKubernetes);
     context.subscriptions.push(disposable);
 
+    disposable = vscode.commands.registerCommand('extension.vsKubernetesLogs', logsKubernetes);
+    context.subscriptions.push(disposable);
+
     vscode.languages.registerHoverProvider({ language: 'json', scheme: 'file' }, {
+        provideHover: provideHover
+    });
+    vscode.languages.registerHoverProvider({ language: 'yaml', scheme: 'file' }, {
         provideHover: provideHover
     });
 }
@@ -223,7 +230,19 @@ function loadKubernetes() {
                 vscode.window.showErrorMessage("Get command failed: " + stderr);
                 return;
             }
-            vscode.window.showTextDocument(stdout);
+            var filepath = path.join(vscode.workspace.rootPath, 'k8s-pod.json');
+            vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + filepath)).then(doc => {
+                console.log(doc);
+                var start = new vscode.Position(0, 0);
+                var end = new vscode.Position(0, 0);
+                var range = new vscode.Range(start, end);
+                var edit = new vscode.TextEdit(range, stdout);
+
+                var wsEdit = new vscode.WorkspaceEdit();
+                wsEdit.set(doc.uri, [edit]);
+                vscode.workspace.applyEdit(wsEdit);
+                vscode.window.showTextDocument(doc);
+            });
         })
     });
 }
@@ -233,7 +252,7 @@ function kubectlDone(result, stdout, stderr) {
         vscode.window.showErrorMessage("Create command failed: " + stderr);
         return;
     }
-    vscode.window.showInformationMessage('Output: ' + stdout);
+    vscode.window.showInformationMessage(stdout);
 };
 
 function kubectl(command) {
@@ -245,7 +264,7 @@ function kubectlInternal(command, handler) {
 };
 
 function getKubernetes() {
-    maybeRunKubernetesCommandForActiveWindow('get -f ');
+    maybeRunKubernetesCommandForActiveWindow('get --no-headers -o wide -f ');
 };
 
 // This is duplicated from vs-docker, find a way to re-use
@@ -284,6 +303,60 @@ function runKubernetes() {
         image = user + '/' + image;
     }
     kubectlInternal(' run ' + name + ' --image=' + image, kubectlDone);
+};
+
+function curry(fn, arg) {
+    return function() {
+        var args = Array.prototype.slice.call(arguments, 0);
+        args.push(arg);
+        return fn.apply(null, args);
+    }
+}
+
+function findPod() {
+    var editor = vscode.window.activeTextEditor;
+    if (!editor) {
+        vscode.window.showErrorMessage("No active editor!");
+        return null; // No open text editor
+    }
+    var text = editor.document.getText();
+    var obj = yaml.safeLoad(text);
+    if (obj.kind == 'Pod') {
+        return {
+            'name': obj.metadata.name,
+            'namespace': obj.metadata.namespace
+        };
+    } else {
+        vscode.window.showErrorMessage("Logs from " + obj.kind + " not currently supported.");
+        return null;
+    }
+}
+
+function logsKubernetes() {
+    var pod = findPod();
+    if (!pod) {
+        vscode.window.showErrorMessage("Can't find a pod!");
+        return;
+    }
+    // TODO: Support multiple containers here!
+
+    var cmd = ' logs ' + pod.name;
+    if (pod.namespace && pod.namespace.length > 0) {
+        cmd += ' --namespace=' + pod.namespace;
+    }
+    console.log(cmd);
+    var fn = curry(kubectlOutput, pod.name + "-output");
+    kubectlInternal(cmd, fn);
+}
+
+function kubectlOutput(result, stdout, stderr, name) {
+    if (result != 0) {
+        vscode.window.showErrorMessage("Command failed: " + stderr);
+        return;
+    }
+    var channel = vscode.window.createOutputChannel(name)
+    channel.append(stdout);
+    channel.show();
 };
 
 exports.activate = activate;
