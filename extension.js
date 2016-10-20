@@ -4,6 +4,7 @@ var vscode = require('vscode');
 var path = require('path');
 var fs = require('fs');
 var yaml = require('js-yaml');
+var dockerfileParse = require('dockerfile-parse');
 
 var explainActive = false;
 
@@ -46,6 +47,9 @@ function activate(context) {
     context.subscriptions.push(disposable);
 
     disposable = vscode.commands.registerCommand('extension.vsKubernetesLogs', logsKubernetes);
+    context.subscriptions.push(disposable);
+
+    disposable = vscode.commands.registerCommand('extension.vsKubernetesExpose', exposeKubernetes);
     context.subscriptions.push(disposable);
 
     vscode.languages.registerHoverProvider({ language: 'json', scheme: 'file' }, {
@@ -184,7 +188,7 @@ function maybeRunKubernetesCommandForActiveWindow(command) {
     var editor = vscode.window.activeTextEditor;
     if (!editor) {
         vscode.window.showErrorMessage("No active editor!");
-        return; // No open text editor
+        return false; // No open text editor
     }
     if (editor.selection) {
         var text = editor.document.getText(editor.selection);
@@ -192,13 +196,19 @@ function maybeRunKubernetesCommandForActiveWindow(command) {
             var proc = kubectl(command + "-");
             proc.stdin.write(text);
             proc.stdin.end();
-            return;
+            return true;
         }
+        return false;
     }
     if (editor.document.isUntitled) {
-        // TODO: Support create without saving
-        vscode.window.showErrorMessage("You need to save this as a file somewhere");
-        return;
+        var text = editor.document.getText();
+        if (text.length > 0) {
+            var proc = kubectl(command + "-");
+            proc.stdin.write(text);
+            proc.stdin.end();
+            return true;
+        }
+        return false;
     }
     if (editor.document.isDirty) {
         // TODO: I18n this?
@@ -218,6 +228,7 @@ function maybeRunKubernetesCommandForActiveWindow(command) {
     } else {
         kubectl(command + editor.document.fileName);
     }
+    return true;
 }
 
 function loadKubernetes() {
@@ -230,7 +241,8 @@ function loadKubernetes() {
                 vscode.window.showErrorMessage("Get command failed: " + stderr);
                 return;
             }
-            var filepath = path.join(vscode.workspace.rootPath, 'k8s-pod.json');
+            var filename = value.replace('/', '-');
+            var filepath = path.join(vscode.workspace.rootPath, filename + '.json');
             vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + filepath)).then(doc => {
                 console.log(doc);
                 var start = new vscode.Position(0, 0);
@@ -255,6 +267,21 @@ function kubectlDone(result, stdout, stderr) {
     vscode.window.showInformationMessage(stdout);
 };
 
+function exposeKubernetes() {
+    var kindName = findKindName();
+    if (!kindName) {
+        vscode.window.showErrorMessage("couldn't find a relevant type to expose.");
+        return;
+    }
+    var cmd = "expose " + kindName;
+    var ports = getPorts();
+    if (ports && ports.length > 0) {
+        cmd += " --port=" + ports[0]
+    }
+
+    kubectl(cmd);
+}
+
 function kubectl(command) {
     kubectlInternal(command, kubectlDone);
 };
@@ -264,7 +291,16 @@ function kubectlInternal(command, handler) {
 };
 
 function getKubernetes() {
-    maybeRunKubernetesCommandForActiveWindow('get --no-headers -o wide -f ');
+    var kindName = findKindName();
+    if (kindName) {
+        maybeRunKubernetesCommandForActiveWindow('get --no-headers -o wide -f ');
+        return;
+    }
+    vscode.window.showInputBox({
+        prompt: "What resource do you want to get?",
+    }).then(function(value) {
+        kubectl(" get " + value + " -o wide --no-headers");
+    });
 };
 
 // This is duplicated from vs-docker, find a way to re-use
@@ -276,21 +312,12 @@ function findVersion() {
     }
 
     var execOpts = { cwd: vscode.workspace.rootPath};
-    var result = shell().exec('git log --pretty=format:\'%h\' -n 1', execOpts);
+    var result = shell().exec('git describe --always --dirty', execOpts);
     if (result.code != 0) {
         vscode.window.showErrorMessage('git log returned: ' + result.code);
         return 'error';
     }
     version = result.stdout;
-
-    result = shell().exec('git status --porcelain', execOpts);
-    if (result.code != 0) {
-        vscode.window.showErrorMessage('git status returned: ' + result.code);
-        return 'error';
-    }
-    if (result.stdout != '') {
-        version += '-dirty';
-    }
     return version;
 }
 
@@ -303,6 +330,28 @@ function runKubernetes() {
         image = user + '/' + image;
     }
     kubectlInternal(' run ' + name + ' --image=' + image, kubectlDone);
+};
+
+function findKindName() {
+    var editor = vscode.window.activeTextEditor;
+    if (!editor) {
+        vscode.window.showErrorMessage("No active editor!");
+        return null; // No open text editor
+    }
+    var text = editor.document.getText();
+    try {
+        var obj = yaml.safeLoad(text);
+        if (!obj.kind) {
+            return null;
+        }
+        if (!obj.metadata || !obj.metadata.name) {
+            return null;
+        }
+        return obj.kind.toLowerCase() + '/' + obj.metadata.name;
+    } catch (ex) {
+        console.log(ex);
+        return null;
+    }
 };
 
 function curry(fn, arg) {
@@ -357,6 +406,21 @@ function kubectlOutput(result, stdout, stderr, name) {
     var channel = vscode.window.createOutputChannel(name)
     channel.append(stdout);
     channel.show();
+};
+
+function getPorts() {
+    var file = vscode.workspace.rootPath + '/Dockerfile';
+    if (!fs.existsSync(file)) {
+        return null;
+    }
+    try {
+        var data = fs.readFileSync(file, 'utf-8');
+        var obj = dockerfileParse(data);
+        return obj.expose;
+    } catch (ex) {
+        console.log(ex);
+        return null;
+    }
 };
 
 exports.activate = activate;
