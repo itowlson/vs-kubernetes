@@ -25,7 +25,9 @@ function activate(context) {
     context.subscriptions.push(disposable);
 
     disposable = vscode.commands.registerCommand('extension.vsKubernetesDelete', function () {
-        maybeRunKubernetesCommandForActiveWindow('delete -f ');
+        findKindNameOrPrompt().then(function(kindName) {
+            kubectl('delete ' + kindName);
+        });
     });
     context.subscriptions.push(disposable);
 
@@ -353,6 +355,18 @@ function findKindName() {
         return null;
     }
 };
+
+function findKindNameOrPrompt() {
+    var kindName = findKindName();
+    if (kindName != null) {
+        return {
+            'then': function(fn) {
+                fn(kindName)
+            }
+        }
+    }
+    return vscode.window.showInputBox({ prompt: "What resource do you want to load?",});
+}
 
 function curry(fn, arg) {
     return function() {
