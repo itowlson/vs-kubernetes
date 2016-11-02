@@ -1,65 +1,40 @@
 # vs-kubernetes README
 
-This is the README for your extension "vs-kubernetes". After writing up a brief description, we recommend including the following sections.
+`vs-kubernetes` provides a Visual Studio Code extension for interacting with Kubernetes clusters.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+`vs-kubernetes` supports a number of commands for interacting with Kubernetes, they are accessible via the command
+menu (`ctrl-shift-p`)
 
-For example if there is an image subfolder under your extension project workspace:
+### General commands
 
-\!\[feature X\]\(images/feature-x.png\)
+   * `Kubernetes Load` - Load a resource from the Kubernetes API and create a new editor window.
+   * `Kubernetes Get` - Get the status for a specific resource.
+   * `Kubernetes Logs` - Get logs for a pod in an output window.
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+### Commands while viewing a Kubernetes file
 
-## Requirements
+   * `Kubernetes Explain` - Use the `kubectl explain ...` tool to annotate Kubernetes API objects
+   * `Kubernetes Create` - Create an object using the current document
+   * `Kubernetes Delete` - Delete an object contained in the current document.
+   * `Kubernetes Apply` - Apply changes to an object contained in the current document.
+   * `Kubernetes Expose` - Expose the object in the current document as a service.
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+### Commands for application directories
+   * `Kubernetes Run` - Run the current application as a Kubernetes Deployment
 
 ## Extension Settings
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
-This extension contributes the following settings:
-
-* `myExtension.enable`: enable/disable this extension
-* `myExtension.thing`: set to `blah` to do something
+None currently.
 
 ## Known Issues
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+Nothing known (plenty unknown ;)
 
 ## Release Notes
 
-Users appreciate release notes as you update your extension.
+### 0.0.1
 
-### 1.0.0
+Initial release of vs-kubernetes
 
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
------------------------------------------------------------------------------------------------------------
-
-## Working with Markdown
-
-**Note:** You can author your README using Visual Studio Code.  Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on OSX or `Ctrl+\` on Windows and Linux)
-* Toggle preview (`Shift+CMD+V` on OSX or `Shift+Ctrl+V` on Windows and Linux)
-* Press `Ctrl+Space` (Windows, Linux) or `Cmd+Space` (OSX) to see a list of Markdown snippets
-
-### For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**

@@ -1,13 +1,14 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 var vscode = require('vscode');
+
+// Standard node imports
 var path = require('path');
 var fs = require('fs');
+
+// External dependencies
 var yaml = require('js-yaml');
 var dockerfileParse = require('dockerfile-parse');
-
-var explainActive = false;
-
 var shellLib = null;
 function shell() {
     if (shellLib == null) {
@@ -15,6 +16,8 @@ function shell() {
     }
     return shellLib;
 };
+
+var explainActive = false;
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
@@ -198,7 +201,6 @@ function maybeRunKubernetesCommandForActiveWindow(command) {
             proc.stdin.end();
             return true;
         }
-        return false;
     }
     if (editor.document.isUntitled) {
         var text = editor.document.getText();
@@ -261,7 +263,7 @@ function loadKubernetes() {
 
 function kubectlDone(result, stdout, stderr) {
     if (result != 0) {
-        vscode.window.showErrorMessage("Create command failed: " + stderr);
+        vscode.window.showErrorMessage("Kubectl command failed: " + stderr);
         return;
     }
     vscode.window.showInformationMessage(stdout);
@@ -287,7 +289,20 @@ function kubectl(command) {
 };
 
 function kubectlInternal(command, handler) {
-    return shell().exec('kubectl ' + command, handler);
+    try {
+        var home = process.env[(process.platform == 'win32') ? 'USERPROFILE' : 'HOME']
+        var opts = {
+            'cwd': vscode.workspace.rootPath,
+            'env': {
+                'HOME': home
+            }
+        }
+        var cmd = 'kubectl ' + command
+        console.log(cmd);
+        return shell().exec(cmd, opts, handler);
+    } catch (ex) {
+        vscode.window.showErrorMessage(ex);
+    }
 };
 
 function getKubernetes() {
