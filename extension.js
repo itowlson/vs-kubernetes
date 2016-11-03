@@ -338,6 +338,27 @@ function findVersion() {
     return version;
 }
 
+function findPods(labelQuery, callback) {
+    kubectlInternal(' get pods -o json -l ' + labelQuery, function(result, stdout, stderr) {
+        if (result != 0) {
+            vscode.window.showErrorMessage("Kubectl command failed: " + stderr);
+            return;
+        }
+        try {
+            var podList = JSON.parse(stdout);
+            callback(podList);
+        } catch (ex) {
+            console.log(ex);
+            vscode.window.showErrorMessage('unexpected error: ' + ex);
+        }
+    });
+}
+
+function findPodsForApp(callback) {
+    var appName = path.basename(vscode.workspace.rootPath);
+    findPods('run=' + appName, callback);
+}
+
 function runKubernetes() {
     var name = path.basename(vscode.workspace.rootPath);
     var version = findVersion();
@@ -391,27 +412,50 @@ function curry(fn, arg) {
     }
 }
 
-function findPod() {
+function findPod(callback) {
     var editor = vscode.window.activeTextEditor;
     if (!editor) {
         vscode.window.showErrorMessage("No active editor!");
         return null; // No open text editor
     }
     var text = editor.document.getText();
-    var obj = yaml.safeLoad(text);
-    if (obj.kind == 'Pod') {
-        return {
-            'name': obj.metadata.name,
-            'namespace': obj.metadata.namespace
-        };
-    } else {
-        vscode.window.showErrorMessage("Logs from " + obj.kind + " not currently supported.");
-        return null;
+    try {
+        var obj = yaml.safeLoad(text);
+        if (obj.kind == 'Pod') {
+            callback({
+                'name': obj.metadata.name,
+                'namespace': obj.metadata.namespace
+            });
+            return;
+        }
+    } catch (ex) {
+        // pass
     }
+    findPodsForApp(function(podList){
+        if (podList.items.length == 0) {
+            vscode.window.showErrorMessage("Couldn't find any relevant pods.");
+        }
+        var names = [];
+        for (var i = 0; i < podList.items.length; i++) {
+            // TODO: handle namespaces here...
+            names.push(podList.items[i].metadata.namespace + '/' + podList.items[i].metadata.name);
+        }
+        vscode.window.showQuickPick(names).then(function(value){
+            var ix = value.indexOf('/');
+            callback({
+                'namespace': value.substring(0, ix),
+                'name': value.substring(ix + 1)
+            });
+        });
+    });
+
 }
 
 function logsKubernetes() {
-    var pod = findPod();
+    findPod(getLogs);
+}
+
+function getLogs(pod) {
     if (!pod) {
         vscode.window.showErrorMessage("Can't find a pod!");
         return;
