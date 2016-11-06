@@ -19,7 +19,9 @@
         "onCommand:extension.vsKubernetesGet",
         "onCommand:extension.vsKubernetesRun",
         "onCommand:extension.vsKubernetesLogs",
-        "onCommand:extension.vsKubernetesExpose"
+        "onCommand:extension.vsKubernetesExpose",
+        "onCommand:extension.vsKubernetesDescribe",
+        "onCommand:extension.vsKubernetesSync"
     ],
     "main": "./extension",
     "contributes": {
@@ -50,6 +52,12 @@
         }, {
             "command": "extension.vsKubernetesExpose",
             "title": "Kubernetes Expose"
+        }, {
+            "command": "extension.vsKubernetesDescribe",
+            "title": "Kubernetes Describe"
+        }, {
+            "command": "extension.vsKubernetesSync",
+            "title": "Kubernetes Sync"
         }]
     },
     "scripts": {
