@@ -38,3 +38,11 @@ Nothing known (plenty unknown ;)
 
 Initial release of vs-kubernetes
 
+### 0.0.2
+
+Internal revision
+
+### 0.0.3
+
+* Add `kubernetes sync` which synchronizes your git repo with running containers
+
