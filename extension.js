@@ -303,11 +303,12 @@ function kubectlInternal(command, handler) {
             'cwd': vscode.workspace.rootPath,
             'env': {
                 'HOME': home
-            }
+            },
+            'async': true
         };
         var cmd = 'kubectl ' + command
         console.log(cmd);
-        return shell().exec(cmd, opts, handler);
+        shell().exec(cmd, opts, handler);
     } catch (ex) {
         vscode.window.showErrorMessage(ex);
     }
@@ -326,12 +327,18 @@ function getKubernetes() {
     });
 };
 
-// This is duplicated from vs-docker, find a way to re-use
 function findVersion() {
+    return {
+        then: findVersionInternal
+    };
+}
+
+function findVersionInternal(fn) {
     // No .git dir, use 'latest'
     // TODO: use 'git rev-parse' to detect upstream directories
     if (!fs.existsSync(path.join(vscode.workspace.rootPath, ".git"))) {
-        return 'latest';
+        fn('latest');
+        return;
     }
 
     var home = process.env[(process.platform == 'win32') ? 'USERPROFILE' : 'HOME']
@@ -339,15 +346,18 @@ function findVersion() {
         'cwd': vscode.workspace.rootPath,
         'env': {
             'HOME': home
-        }
+        },
+        'async': true,
     };
-    var result = shell().exec('git describe --always --dirty', opts);
-    if (result.code != 0) {
-        vscode.window.showErrorMessage('git log returned: ' + result.code);
-        return 'error';
-    }
-    version = result.stdout;
-    return version;
+    shell().exec('git describe --always --dirty', opts, function(code, stdout, stderr){
+        if (code != 0) {
+            vscode.window.showErrorMessage('git log returned: ' + code);
+            console.log(stderr);
+            fn('error');
+            return;
+        }
+        fn(stdout);
+    });
 }
 
 function findPods(labelQuery, callback) {
@@ -373,13 +383,14 @@ function findPodsForApp(callback) {
 
 function runKubernetes() {
     var name = path.basename(vscode.workspace.rootPath);
-    var version = findVersion();
-    var image = name + ":" + version;
-    var user = vscode.workspace.getConfiguration().get("vsdocker.imageUser", null);
-    if (user) {
-        image = user + '/' + image;
-    }
-    kubectlInternal(' run ' + name + ' --image=' + image, kubectlDone);
+    findVersion().then(function(version) {
+        var image = name + ":" + version;
+        var user = vscode.workspace.getConfiguration().get("vsdocker.imageUser", null);
+        if (user) {
+            image = user + '/' + image;
+        }
+        kubectlInternal(' run ' + name + ' --image=' + image, kubectlDone);
+    });
 };
 
 function findKindName() {
@@ -568,7 +579,8 @@ function syncKubernetes() {
                 'cwd': vscode.workspace.rootPath,
                 'env': {
                     'HOME': home
-                }
+                },
+                'async': true,
             };
             var cmd = 'git checkout ' + pieces[1];
             shell().exec(cmd, opts, function (code, stdout, stderr) {
