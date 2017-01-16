@@ -38,3 +38,10 @@ Nothing known (plenty unknown ;)
 
 Initial release of vs-kubernetes
 
+### 0.0.3
+
+Initial release of the extension in the marketplace
+
+### 0.0.4
+
+Add checking for the `kubectl` binary in the `PATH`
