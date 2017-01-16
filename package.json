@@ -25,6 +25,22 @@
     ],
     "main": "./extension",
     "contributes": {
+        "configuration": {
+            "type": "object",
+            "title": "Kubernetes configuration",
+            "properties": {
+                "vs-kubernetes.namespace": {
+                    "type": "string",
+                    "default": "default",
+                    "description": "The namespace to use for all commands"
+                },
+                "vs-kubernetes.kubectl-path": {
+                    "type": "string",
+                    "default": null,
+                    "description": "File path to a kubectl binary."
+                }
+            }
+        },
         "commands": [{
             "command": "extension.vsKubernetesCreate",
             "title": "Kubernetes Create"

@@ -24,13 +24,21 @@ var kubectlFound = false;
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 function activate(context) {
-    findBinary('kubectl', function(err, output) {
-        if (err || output.length == 0) {
-            vscode.window.showErrorMessage('Could not find "kubectl" binary, extension will not function correctly.');
-        } else {
-            kubectlFound = true;
+    var bin = vscode.workspace.getConfiguration('vs-kubernetes')['vs-kubernetes.kubectl-path']; 
+    if (!bin) {
+        findBinary('kubectl', function(err, output) {
+            if (err || output.length == 0) {
+                vscode.window.showErrorMessage('Could not find "kubectl" binary, extension will not function correctly.');
+            } else {
+                kubectlFound = true;
+            }
+        });
+    } else {
+        kubectlFound = fs.existsSync(bin);
+        if (!kubectlFound) {
+            vscode.window.showErrorMessage(bin + ' does not exist! Extension will not function correctly.');
         }
-    });
+    }
 
     var disposable = vscode.commands.registerCommand('extension.vsKubernetesCreate', function() {
         maybeRunKubernetesCommandForActiveWindow('create -f ');
@@ -210,6 +218,8 @@ function maybeRunKubernetesCommandForActiveWindow(command) {
         vscode.window.showErrorMessage("No active editor!");
         return false; // No open text editor
     }
+    var namespace = vscode.workspace.getConfiguration('vs-kubernetes')['vs-kubernetes.namespace']; 
+    command = command + "--namespace " + namespace + " ";
     if (editor.selection) {
         var text = editor.document.getText(editor.selection);
         if (text.length > 0) {
@@ -255,7 +265,6 @@ function loadKubernetes() {
         prompt: "What resource do you want to load?",
     }).then(function(value) {
         kubectlInternal(" -o json get " + value, function(result, stdout, stderr) {
-            console.log(stdout);
             if (result != 0) {
                 vscode.window.showErrorMessage("Get command failed: " + stderr);
                 return;
@@ -263,7 +272,6 @@ function loadKubernetes() {
             var filename = value.replace('/', '-');
             var filepath = path.join(vscode.workspace.rootPath, filename + '.json');
             vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + filepath)).then(doc => {
-                console.log(doc);
                 var start = new vscode.Position(0, 0);
                 var end = new vscode.Position(0, 0);
                 var range = new vscode.Range(start, end);
@@ -318,8 +326,11 @@ function kubectlInternal(command, handler) {
             },
             'async': true
         };
-        var cmd = 'kubectl ' + command
-        console.log(cmd);
+        var bin = vscode.workspace.getConfiguration('vs-kubernetes')['vs-kubernetes.kubectl-path'];
+        if (!bin) {
+            bin = 'kubectl'
+        }
+        var cmd = bin + ' ' + command
         shell().exec(cmd, opts, handler);
     } catch (ex) {
         vscode.window.showErrorMessage(ex);
@@ -519,7 +530,6 @@ function getLogs(pod) {
     if (pod.namespace && pod.namespace.length > 0) {
         cmd += ' --namespace=' + pod.namespace;
     }
-    console.log(cmd);
     var fn = curry(kubectlOutput, pod.name + "-output");
     kubectlInternal(cmd, fn);
 }
@@ -605,29 +615,30 @@ function syncKubernetes() {
     });
 };
 
-exports.activate = activate;
-
-// this method is called when your extension is deactivated
-function deactivate() {}
-exports.deactivate = deactivate;
-
 function findBinary(binName, callback) {
     if (process.platform == 'win32') {
         cmd = 'where.exe ' + binName + '.exe';
     } else {
         cmd = 'which ' + binName;
     }
-    shell().exec(cmd, function(err, stdout, stderr) {
-        callback(null, 'foo');
+    opts = {
+        'async': true,
+        'env': {
+            'HOME': process.env.HOME,
+            'PATH': process.env.PATH
+        }
+    }
+    shell().exec(cmd, opts, function(code, stdout, stderr) {
+        if (code) {
+            callback(code, stderr);
+        } else {
+            callback(null, stdout);
+        }
     });
-    /*
-            if (err) {
-                console.log('FOO: ' + stdout);
-                console.log('BAR: ' + stderr);
-                callback(err, stderr);
-            } else {
-                callback(null, stdout);
-            }
-        });
-        */
 };
+
+exports.activate = activate;
+
+// this method is called when your extension is deactivated
+function deactivate() {}
+exports.deactivate = deactivate;
