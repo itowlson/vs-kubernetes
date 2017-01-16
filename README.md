@@ -45,4 +45,8 @@ Internal revision
 ### 0.0.3
 
 * Add `kubernetes sync` which synchronizes your git repo with running containers
+* Initial release of the extension in the marketplace
 
+### 0.0.4
+
+Add checking for the `kubectl` binary in the `PATH`
