@@ -21,7 +21,9 @@
         "onCommand:extension.vsKubernetesLogs",
         "onCommand:extension.vsKubernetesExpose",
         "onCommand:extension.vsKubernetesDescribe",
-        "onCommand:extension.vsKubernetesSync"
+        "onCommand:extension.vsKubernetesSync",
+        "onCommand:extension.vsKubernetesExec",
+        "onCommand:extension.vsKubernetesTerminal"
     ],
     "main": "./extension",
     "contributes": {
@@ -74,6 +76,12 @@
         }, {
             "command": "extension.vsKubernetesSync",
             "title": "Kubernetes Sync"
+        }, {
+            "command": "extension.vsKubernetesExec",
+            "title": "Kubernetes Exec"
+        }, {
+            "command": "extension.vsKubernetesTerminal",
+            "title": "Kubernetes Terminal"
         }]
     },
     "scripts": {

@@ -81,9 +81,17 @@ function activate(context) {
     disposable = vscode.commands.registerCommand('extension.vsKubernetesSync', syncKubernetes);
     context.subscriptions.push(disposable);
 
+    disposable = vscode.commands.registerCommand('extension.vsKubernetesExec', curry(execKubernetes, false));
+    context.subscriptions.push(disposable);
+
+    disposable = vscode.commands.registerCommand('extension.vsKubernetesTerminal', curry(execKubernetes, true));
+    context.subscriptions.push(disposable);
+
     vscode.languages.registerHoverProvider({ language: 'json', scheme: 'file' }, {
         provideHover: provideHover
     });
+
+    // TODO: this doesn't work yet.
     vscode.languages.registerHoverProvider({ language: 'yaml', scheme: 'file' }, {
         provideHover: provideHover
     });
@@ -587,6 +595,35 @@ function selectContainerForPod(pod, callback) {
         callback(null);
     });
 };
+
+function execKubernetes(isTerminal) {
+    var opts = {'prompt': 'Please provide a command to execute'};
+    if (isTerminal) {
+        opts.value = 'bash';
+    }
+
+    vscode.window.showInputBox(
+        opts
+    ).then(function(cmd) {
+        if (!cmd || cmd.length == 0) {
+            return;
+        }
+        selectPodForApp(function(pod) {
+            if (!pod || !pod.metadata) {
+                return;
+            }
+            if (isTerminal) {
+                var execCmd = [ 'exec', '-it', pod.metadata.name, cmd];
+                var term = vscode.window.createTerminal('exec', 'kubectl', execCmd);
+                term.show();
+            } else {
+                var execCmd = ' exec ' + pod.metadata.name + ' ' + cmd;
+                var fn = curry(kubectlOutput, pod.metadata.name + "-exec")
+                kubectlInternal(execCmd, fn);
+            }
+        });
+    });
+}
 
 function syncKubernetes() {
     selectPodForApp(function(pod) {
