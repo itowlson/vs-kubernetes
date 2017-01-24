@@ -50,3 +50,8 @@ Internal revision
 ### 0.0.4
 
 Add checking for the `kubectl` binary in the `PATH`
+
+### 0.0.5
+
+Add support for 'diff' between files and objects on server
+Add support for exec and terminal into pods
