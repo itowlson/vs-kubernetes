@@ -357,6 +357,7 @@ function loadKubernetes() {
 function kubectlDone(result, stdout, stderr) {
     if (result != 0) {
         vscode.window.showErrorMessage("Kubectl command failed: " + stderr);
+        console.log(stderr);
         return;
     }
     vscode.window.showInformationMessage(stdout);
@@ -817,8 +818,8 @@ debugKubernetes = function () {
             }
             var name = podList.items[0].metadata.name;
             vscode.window.showInformationMessage('Debug pod running as: ' + name);
-            // This is a total brittle hack. Wait for status here.
-            setTimeout(function () {
+
+            waitForRunningPod(name, function () {
                 kubectl(' port-forward ' + name + ' 5858:5858 8000:8000');
                 vscode.commands.executeCommand(
                     'vscode.startDebug',
@@ -830,15 +831,28 @@ debugKubernetes = function () {
                         "localRoot": "/home/bburns/node-simple",
                         "remoteRoot": "/"
                     }
-                ).then(() => {
-                    vscode.window.showInformationMessage('OK!');
-                }, err => {
+                ).then(() => {}, err => {
                     vscode.window.showInformationMessage('Error: ' + err.message);
                 });
-            }, 5000);
+            });
         });
     });
 }
+
+waitForRunningPod = function (name, callback) {
+    kubectlInternal(' get pods ' + name + ' -o jsonpath --template="{.status.phase}"',
+        function (result, stdout, stderr) {
+            if (result != 0) {
+                vscode.window.showErrorMessage('Failed to run command (' + result + ') ' + stderr);
+                return;
+            }
+            if (stdout == 'Running') {
+                callback();
+                return;
+            }
+            setTimeout(function () { waitForRunningPod(name, callback) }, 1000);
+        });
+};
 
 exports.activate = activate;
 
