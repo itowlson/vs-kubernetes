@@ -89,6 +89,9 @@ function activate(context) {
     disposable = vscode.commands.registerCommand('extension.vsKubernetesDiff', diffKubernetes);
     context.subscriptions.push(disposable);
 
+    disposable = vscode.commands.registerCommand('extension.vsKubernetesDebug', debugKubernetes);
+    context.subscriptions.push(disposable);
+
     vscode.languages.registerHoverProvider({ language: 'json', scheme: 'file' }, {
         provideHover: provideHover
     });
@@ -469,6 +472,11 @@ function findPodsForApp(callback) {
     findPods('run=' + appName, callback);
 }
 
+function findDebugPodsForApp(callback) {
+    var appName = path.basename(vscode.workspace.rootPath);
+    findPods('run=' + appName + '-debug', callback);
+}
+
 function runKubernetes() {
     var name = path.basename(vscode.workspace.rootPath);
     findVersion().then(function (version) {
@@ -736,17 +744,17 @@ function findBinary(binName, callback) {
 };
 
 applyKubernetes = function () {
-    diffKubernetes(function() {
+    diffKubernetes(function () {
         vscode.window.showInformationMessage(
             'Do you wish to apply this change?',
             'Apply'
         ).then(
-            function(result) {
+            function (result) {
                 if (result == 'Apply') {
                     maybeRunKubernetesCommandForActiveWindow('apply -f ');
                 }
             }
-        );
+            );
     });
 };
 
@@ -786,12 +794,48 @@ diffKubernetes = function (callback) {
             vscode.commands.executeCommand(
                 'vscode.diff',
                 vscode.Uri.parse('file://' + otherFile),
-                vscode.Uri.parse('file://' + fileName)).then(function(result) {
+                vscode.Uri.parse('file://' + fileName)).then(function (result) {
                     console.log(result);
                     if (callback) {
                         callback();
                     }
                 });
+        });
+    });
+};
+
+debugKubernetes = function () {
+    kubectlInternal(' run node-simple-debug --image brendanburns/node-simple:9abffd4 -i --attach=false -- node debug /start.js', function (result, stdout, stderr) {
+        if (result != 0) {
+            vscode.window.showErrorMessage('Failed to start debug container: ' + stderr);
+            return;
+        }
+        findDebugPodsForApp(function (podList) {
+            if (podList.items.length == 0) {
+                vscode.window.showErrorMessage('Failed to find debug pod.');
+                return;
+            }
+            var name = podList.items[0].metadata.name;
+            vscode.window.showInformationMessage('Debug pod running as: ' + name);
+            // This is a total brittle hack. Wait for status here.
+            setTimeout(function () {
+                kubectl(' port-forward ' + name + ' 5858:5858 8000:8000');
+                vscode.commands.executeCommand(
+                    'vscode.startDebug',
+                    {
+                        "type": "node",
+                        "request": "attach",
+                        "name": "Attach to Process",
+                        "port": 5858,
+                        "localRoot": "/home/bburns/node-simple",
+                        "remoteRoot": "/"
+                    }
+                ).then(() => {
+                    vscode.window.showInformationMessage('OK!');
+                }, err => {
+                    vscode.window.showInformationMessage('Error: ' + err.message);
+                });
+            }, 5000);
         });
     });
 }

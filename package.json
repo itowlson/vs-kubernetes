@@ -24,7 +24,8 @@
         "onCommand:extension.vsKubernetesSync",
         "onCommand:extension.vsKubernetesExec",
         "onCommand:extension.vsKubernetesTerminal",
-        "onCommand:extension.vsKubernetesDiff"
+        "onCommand:extension.vsKubernetesDiff",
+        "onCommand:extension.vsKubernetesDebug"
     ],
     "main": "./extension",
     "contributes": {
@@ -86,6 +87,9 @@
         }, {
             "command": "extension.vsKubernetesDiff",
             "title": "Kubernetes Diff"
+        }, {
+            "command": "extension.vsKubernetesDebug",
+            "title": "Kubernetes Debug"
         }]
     },
     "scripts": {
