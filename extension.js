@@ -478,7 +478,13 @@ function findDebugPodsForApp(callback) {
     findPods('run=' + appName + '-debug', callback);
 }
 
-function runKubernetes() {
+function findNameAndImage() {
+    return {
+        'then': _findNameAndImageInternal
+    };
+};
+
+function _findNameAndImageInternal(fn) {
     var name = path.basename(vscode.workspace.rootPath);
     findVersion().then(function (version) {
         var image = name + ":" + version;
@@ -486,6 +492,14 @@ function runKubernetes() {
         if (user) {
             image = user + '/' + image;
         }
+        image = image.trim();
+        name = name.trim();
+        fn(name, image);
+    });
+};
+
+function runKubernetes() {
+    findNameAndImage().then(function (name, image) {
         kubectlInternal(' run ' + name + ' --image=' + image, kubectlDone);
     });
 };
@@ -806,7 +820,22 @@ diffKubernetes = function (callback) {
 };
 
 debugKubernetes = function () {
-    kubectlInternal(' run node-simple-debug --image brendanburns/node-simple:9abffd4 -i --attach=false -- node debug /start.js', function (result, stdout, stderr) {
+    findNameAndImage().then(_debugInternal);
+}
+
+_debugInternal = function (name, image) {
+    // TODO: optionalize/customize the '-debug'
+    // TODO: make this smarter.
+    vscode.window.showInputBox('Debug command for your container:').then(function (cmd) {
+        if (cmd) {
+            _doDebug(name, image, cmd);
+        }
+    });
+};
+
+_doDebug = function (name, image, cmd) {
+    console.log(' run ' + name + '-debug --image=' + image + ' -i --attach=false -- ' + cmd);
+    kubectlInternal(' run ' + name + '-debug --image=' + image + ' -i --attach=false -- ' + cmd, function (result, stdout, stderr) {
         if (result != 0) {
             vscode.window.showErrorMessage('Failed to start debug container: ' + stderr);
             return;
@@ -831,13 +860,13 @@ debugKubernetes = function () {
                         "localRoot": "/home/bburns/node-simple",
                         "remoteRoot": "/"
                     }
-                ).then(() => {}, err => {
+                ).then(() => { }, err => {
                     vscode.window.showInformationMessage('Error: ' + err.message);
                 });
             });
         });
     });
-}
+};
 
 waitForRunningPod = function (name, callback) {
     kubectlInternal(' get pods ' + name + ' -o jsonpath --template="{.status.phase}"',
