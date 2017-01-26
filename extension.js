@@ -386,6 +386,15 @@ function kubectlInternal(command, handler) {
     if (!kubectlFound) {
         vscode.window.showErrorMessage('Can not find "kubectl" command line tool.');
     }
+    var bin = vscode.workspace.getConfiguration('vs-kubernetes')['vs-kubernetes.kubectl-path'];
+    if (!bin) {
+        bin = 'kubectl'
+    }
+    var cmd = bin + ' ' + command
+    shellExec(cmd, handler);
+};
+
+function shellExec(cmd, handler) {
     try {
         var home = process.env[(process.platform == 'win32') ? 'USERPROFILE' : 'HOME']
         var opts = {
@@ -395,11 +404,6 @@ function kubectlInternal(command, handler) {
             },
             'async': true
         };
-        var bin = vscode.workspace.getConfiguration('vs-kubernetes')['vs-kubernetes.kubectl-path'];
-        if (!bin) {
-            bin = 'kubectl'
-        }
-        var cmd = bin + ' ' + command
         shell().exec(cmd, opts, handler);
     } catch (ex) {
         vscode.window.showErrorMessage(ex);
@@ -499,8 +503,30 @@ function _findNameAndImageInternal(fn) {
 };
 
 function runKubernetes() {
-    findNameAndImage().then(function (name, image) {
+    buildPushThenExec(function(name, image) {
         kubectlInternal(' run ' + name + ' --image=' + image, kubectlDone);
+    });
+};
+
+function buildPushThenExec(fn) {
+    findNameAndImage().then(function (name, image) {
+        shellExec('docker build -t ' + image + ' .', function(result, stdout, stderr) {
+            if (result == 0) {
+                vscode.window.showInformationMessage(image + ' built.');
+                shellExec('docker push ' + image, function(result, stdout, stderr) {
+                    if (result == 0) {
+                        vscode.window.showInformationMessage(image + ' pushed.');
+                        fn(name, image);
+                    } else {
+                        vscode.window.showErrorMessage('Image push failed.');
+                        console.log(stderr);
+                    }
+                });
+            } else {
+                vscode.window.showErrorMessage('Image build failed.');
+                console.log(stderr);
+            }
+        });
     });
 };
 
@@ -820,7 +846,7 @@ diffKubernetes = function (callback) {
 };
 
 debugKubernetes = function () {
-    findNameAndImage().then(_debugInternal);
+    buildPushThenExec(_debugInternal);
 }
 
 _debugInternal = function (name, image) {
