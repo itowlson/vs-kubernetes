@@ -55,3 +55,8 @@ Add checking for the `kubectl` binary in the `PATH`
 
 Add support for 'diff' between files and objects on server
 Add support for exec and terminal into pods
+
+### 0.0.6
+
+Add support for interactive node.js debugging (Alpha)
+Auto build/push for run and debug
