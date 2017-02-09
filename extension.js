@@ -883,7 +883,7 @@ _doDebug = function (name, image, cmd) {
                         "request": "attach",
                         "name": "Attach to Process",
                         "port": 5858,
-                        "localRoot": "/home/bburns/node-simple",
+                        "localRoot": vscode.workspace.rootPath,
                         "remoteRoot": "/"
                     }
                 ).then(() => { }, err => {
