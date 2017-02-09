@@ -2,6 +2,41 @@
 
 `vs-kubernetes` provides a Visual Studio Code extension for interacting with Kubernetes clusters.
 
+## Configuring
+
+### Setting up your environment.
+
+This extension assumes that you have a `Dockerfile` in the root directory of
+your project.
+
+It also assumes that you have the following binaries on your `PATH`:
+   * `kubectl`
+   * `docker`
+   * `git`
+
+If you don't have those on your PATH then the extension will fail in
+unexpected ways.
+
+### Setting up the image repository path
+If you want to use the `Kubernetes Run` and `Kubernetes Debug` features
+then you need to have correctly set the image and repository for your
+images. You can do this via preferences in VS-Code:
+
+File > Preferences
+
+And then add:
+
+```javascript
+{
+  ...
+  "vsdocker.imageUser": "<your-image-prefix-here>",
+  ...
+}
+```
+
+Where `<your-image-prefix-here>` is something like `docker.io/brendanburns`.
+
+
 ## Features
 
 `vs-kubernetes` supports a number of commands for interacting with Kubernetes, they are accessible via the command
@@ -60,3 +95,7 @@ Add support for exec and terminal into pods
 
 Add support for interactive node.js debugging (Alpha)
 Auto build/push for run and debug
+
+### 0.0.7
+
+Fix a hard-coded value that made debug not work on any machine except mine...
