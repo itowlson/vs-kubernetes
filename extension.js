@@ -101,16 +101,16 @@ function activate(context) {
     });
 }
 
-function provideHoverJson(document, position, token) {
+function providerHover(document, position, token, syntax) {
     if (!explainActive) {
         return null;
     }
     var body = document.getText();
     var obj = {};
     try {
-        obj = JSON.parse(body);
+        obj = syntax.parse(body);
     } catch (err) {
-        // Bad JSON
+        // Bad document
         return null;
     }
     // Not a k8s object.
@@ -118,13 +118,13 @@ function provideHoverJson(document, position, token) {
         return null;
     }
     var property = findProperty(document.lineAt(position.line));
-    var field = JSON.parse(property);
+    var field = syntax.parse(property);
 
-    var parentLine = findParentJson(document, position.line - 1);
+    var parentLine = syntax.findParent(document, position.line);
     while (parentLine != -1) {
         var parentProperty = findProperty(document.lineAt(parentLine));
-        field = JSON.parse(parentProperty) + '.' + field;
-        parentLine = findParentJson(document, parentLine - 1);
+        field = syntax.parse(parentProperty) + '.' + field;
+        parentLine = syntax.findParent(document, parentLine);
     }
 
     if (field == 'kind') {
@@ -142,45 +142,22 @@ function provideHoverJson(document, position, token) {
     };
 }
 
-function provideHoverYaml(document, position, token) {
-    if (!explainActive) {
-        return null;
-    }
-    var body = document.getText();
-    var obj = {};
-    try {
-        obj = yaml.safeLoad(body);
-    } catch (err) {
-        // Bad YAML
-        return null;
-    }
-    // Not a k8s object.
-    if (!obj.kind) {
-        return null;
-    }
-    var property = findProperty(document.lineAt(position.line));
-    var field = yaml.safeLoad(property);
-
-    var parentLine = findParentYaml(document, position.line);
-    while (parentLine != -1) {
-        var parentProperty = findProperty(document.lineAt(parentLine));
-        field = yaml.safeLoad(parentProperty) + '.' + field;
-        parentLine = findParentYaml(document, parentLine);
-    }
-
-    if (field == 'kind') {
-        field = '';
-    }
-    return {
-        'then': function (fn) {
-            explain(obj, field, function (msg) {
-                fn(new vscode.Hover({
-                    'language': 'json',
-                    'value': msg
-                }));
-            });
-        }
+function provideHoverJson(document, position, token) {
+    var syntax = {
+        parse: function(text) { return JSON.parse(text); },
+        findParent: function(document, parentLine) { return findParentJson(document, parentLine - 1); }
     };
+
+    return providerHover(document, position, token, syntax);
+}
+
+function provideHoverYaml(document, position, token) {
+    var syntax = {
+        parse: function(text) { return yaml.safeLoad(text); },
+        findParent: function(document, parentLine) { return findParentYaml(document, parentLine); }
+    };
+
+    return providerHover(document, position, token, syntax);
 }
 
 function findProperty(line) {
