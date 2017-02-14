@@ -93,16 +93,15 @@ function activate(context) {
     context.subscriptions.push(disposable);
 
     vscode.languages.registerHoverProvider({ language: 'json', scheme: 'file' }, {
-        provideHover: provideHover
+        provideHover: provideHoverJson
     });
 
-    // TODO: this doesn't work yet.
     vscode.languages.registerHoverProvider({ language: 'yaml', scheme: 'file' }, {
-        provideHover: provideHover
+        provideHover: provideHoverYaml
     });
 }
 
-function provideHover(document, position, token) {
+function provideHoverJson(document, position, token) {
     if (!explainActive) {
         return null;
     }
@@ -121,11 +120,52 @@ function provideHover(document, position, token) {
     var property = findProperty(document.lineAt(position.line));
     var field = JSON.parse(property);
 
-    var parentLine = findParent(document, position.line - 1);
+    var parentLine = findParentJson(document, position.line - 1);
     while (parentLine != -1) {
         var parentProperty = findProperty(document.lineAt(parentLine));
         field = JSON.parse(parentProperty) + '.' + field;
-        parentLine = findParent(document, parentLine - 1);
+        parentLine = findParentJson(document, parentLine - 1);
+    }
+
+    if (field == 'kind') {
+        field = '';
+    }
+    return {
+        'then': function (fn) {
+            explain(obj, field, function (msg) {
+                fn(new vscode.Hover({
+                    'language': 'json',
+                    'value': msg
+                }));
+            });
+        }
+    };
+}
+
+function provideHoverYaml(document, position, token) {
+    if (!explainActive) {
+        return null;
+    }
+    var body = document.getText();
+    var obj = {};
+    try {
+        obj = yaml.safeLoad(body);
+    } catch (err) {
+        // Bad YAML
+        return null;
+    }
+    // Not a k8s object.
+    if (!obj.kind) {
+        return null;
+    }
+    var property = findProperty(document.lineAt(position.line));
+    var field = yaml.safeLoad(property);
+
+    var parentLine = findParentYaml(document, position.line);
+    while (parentLine != -1) {
+        var parentProperty = findProperty(document.lineAt(parentLine));
+        field = yaml.safeLoad(parentProperty) + '.' + field;
+        parentLine = findParentYaml(document, parentLine);
     }
 
     if (field == 'kind') {
@@ -148,7 +188,7 @@ function findProperty(line) {
     return line.text.substring(line.firstNonWhitespaceCharacterIndex, ix);
 };
 
-function findParent(document, line) {
+function findParentJson(document, line) {
     var count = 1;
     while (line >= 0) {
         var txt = document.lineAt(line);
@@ -172,6 +212,32 @@ function findParent(document, line) {
     }
     return line;
 };
+
+function findParentYaml(document, line) {
+    var indent = yamlIndentLevel(document.lineAt(line).text)
+    while (line >= 0) {
+        var txt = document.lineAt(line);
+        if (yamlIndentLevel(txt.text) < indent) {
+            return line;
+        }
+        line = line - 1;
+    }
+    return line;
+};
+
+function yamlIndentLevel(str) {
+    var i = 0;
+    while (true) {
+        if (str.length <= i || !isYamlIndentChar(str.charAt(i))) {
+            return i;
+        }
+        ++i;
+    }
+}
+
+function isYamlIndentChar(ch) {
+    return ch == ' ' || ch == '-';
+}
 
 function explain(obj, field, fn) {
     if (!obj.kind) {
