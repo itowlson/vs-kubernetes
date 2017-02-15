@@ -489,6 +489,10 @@ function findNameAndImage() {
 };
 
 function _findNameAndImageInternal(fn) {
+    if (vscode.workspace.rootPath === undefined) {
+        vscode.window.showErrorMessage("This command requires an open folder.");
+        return;
+    }
     var name = path.basename(vscode.workspace.rootPath);
     findVersion().then(function (version) {
         var image = name + ":" + version;
