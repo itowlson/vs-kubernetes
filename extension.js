@@ -331,6 +331,7 @@ function getTextForActiveWindow(callback) {
 function loadKubernetes() {
     vscode.window.showInputBox({
         prompt: "What resource do you want to load?",
+        placeHolder: "e.g. 'pod web-pod-13je7', 'deployments', 'service/frontend pods/web-pos-13je7'"
     }).then(function (value) {
         kubectlInternal(" -o json get " + value, function (result, stdout, stderr) {
             if (result != 0) {
