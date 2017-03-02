@@ -862,7 +862,7 @@ debugKubernetes = function () {
 _debugInternal = function (name, image) {
     // TODO: optionalize/customize the '-debug'
     // TODO: make this smarter.
-    vscode.window.showInputBox('Debug command for your container:').then(function (cmd) {
+    vscode.window.showInputBox({ prompt: 'Debug command for your container:', placeHolder: 'Example: node debug server.js' }).then(function (cmd) {
         if (cmd) {
             _doDebug(name, image, cmd);
         }
@@ -896,7 +896,7 @@ _doDebug = function (name, image, cmd) {
                         "localRoot": vscode.workspace.rootPath,
                         "remoteRoot": "/"
                     }
-                ).then(() => { }, err => {
+                ).then(() => { vscode.window.showInformationMessage('Debug session established'); }, err => {
                     vscode.window.showInformationMessage('Error: ' + err.message);
                 });
             });
