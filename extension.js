@@ -870,8 +870,10 @@ _debugInternal = function (name, image) {
 };
 
 _doDebug = function (name, image, cmd) {
-    console.log(' run ' + name + '-debug --image=' + image + ' -i --attach=false -- ' + cmd);
-    kubectlInternal(' run ' + name + '-debug --image=' + image + ' -i --attach=false -- ' + cmd, function (result, stdout, stderr) {
+    var deploymentName = name + "-debug";
+    var runCmd = ' run ' + deploymentName + ' --image=' + image + ' -i --attach=false -- ' + cmd;
+    console.log(runCmd);
+    kubectlInternal(runCmd, function (result, stdout, stderr) {
         if (result != 0) {
             vscode.window.showErrorMessage('Failed to start debug container: ' + stderr);
             return;
@@ -881,11 +883,11 @@ _doDebug = function (name, image, cmd) {
                 vscode.window.showErrorMessage('Failed to find debug pod.');
                 return;
             }
-            var name = podList.items[0].metadata.name;
-            vscode.window.showInformationMessage('Debug pod running as: ' + name);
+            var podName = podList.items[0].metadata.name;
+            vscode.window.showInformationMessage('Debug pod running as: ' + podName);
 
-            waitForRunningPod(name, function () {
-                kubectl(' port-forward ' + name + ' 5858:5858 8000:8000');
+            waitForRunningPod(podName, function () {
+                kubectl(' port-forward ' + podName + ' 5858:5858 8000:8000');
                 vscode.commands.executeCommand(
                     'vscode.startDebug',
                     {
@@ -896,7 +898,24 @@ _doDebug = function (name, image, cmd) {
                         "localRoot": vscode.workspace.rootPath,
                         "remoteRoot": "/"
                     }
-                ).then(() => { vscode.window.showInformationMessage('Debug session established'); }, err => {
+                ).then(() => {
+                    vscode.window.showInformationMessage('Debug session established', 'Expose Service').then(opt => {
+                        if (opt == 'Expose Service') {
+                            vscode.window.showInputBox({ prompt: 'Expose on which port?', placeHolder: '80'}).then(port => {
+                                if (port) {
+                                    var exposeCmd = "expose deployment " + deploymentName + " --type=LoadBalancer --port=" + port;
+                                    kubectlInternal(exposeCmd, function (result, stdout, stderr) {
+                                        if (result != 0) {
+                                            vscode.window.showErrorMessage('Failed to expose deployment: ' + stderr);
+                                            return;
+                                        }
+                                        vscode.window.showInformationMessage('Deployment exposed. Run Kubernetes Get > service ' + deploymentName + ' for IP address');
+                                    });
+                                }
+                            });
+                        }
+                    });
+                }, err => {
                     vscode.window.showInformationMessage('Error: ' + err.message);
                 });
             });
