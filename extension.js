@@ -92,6 +92,9 @@ function activate(context) {
     disposable = vscode.commands.registerCommand('extension.vsKubernetesDebug', debugKubernetes);
     context.subscriptions.push(disposable);
 
+    disposable = vscode.commands.registerCommand('extension.vsKubernetesRemoveDebug', removedebugKubernetes);
+    context.subscriptions.push(disposable);
+
     vscode.languages.registerHoverProvider({ language: 'json', scheme: 'file' }, {
         provideHover: provideHover
     });
@@ -937,6 +940,41 @@ waitForRunningPod = function (name, callback) {
             setTimeout(function () { waitForRunningPod(name, callback) }, 1000);
         });
 };
+
+function exists(kind, name, handler) {
+    kubectlInternal('get ' + kind + ' ' + name, function(result, stdout, stderr) {
+        handler(result == 0);
+    });
+}
+
+function deploymentExists(deploymentName, handler) {
+    exists('deployments', deploymentName, handler);
+}
+
+function serviceExists(serviceName, handler) {
+    exists('services', serviceName, handler);
+}
+
+function removedebugKubernetes() {
+    findNameAndImage().then(function (name, image) {
+        var deploymentName = name + "-debug";
+        deploymentExists(deploymentName, d => {
+            serviceExists(deploymentName, s => {
+                if (!d && !s) {
+                    vscode.window.showInformationMessage(deploymentName + ': nothing to clean up');
+                    return;
+                }
+                var toDelete = d ? ("deployment" + (s ? " and service" : "")) : "service";
+                vscode.window.showWarningMessage("This will delete " + toDelete + " " + deploymentName, 'Delete').then(opt => {
+                    if (opt === 'Delete') {
+                        if (s) { kubectl('delete service ' + deploymentName); }
+                        if (d) { kubectl('delete deployment ' + deploymentName); }
+                    }
+                });
+            })
+        });
+    });
+}
 
 exports.activate = activate;
 
