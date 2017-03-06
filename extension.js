@@ -890,17 +890,11 @@ _doDebug = function (name, image, cmd) {
             vscode.window.showInformationMessage('Debug pod running as: ' + podName);
 
             waitForRunningPod(podName, function () {
-                kubectl(' port-forward ' + podName + ' 5858:5858 8000:8000');
+                var debugParameters = getDebugParameters("node");
+                kubectl(' port-forward ' + podName + ' '+ debugParameters.port + ':' + debugParameters.port + ' 8000:8000');
                 vscode.commands.executeCommand(
                     'vscode.startDebug',
-                    {
-                        "type": "node",
-                        "request": "attach",
-                        "name": "Attach to Process",
-                        "port": 5858,
-                        "localRoot": vscode.workspace.rootPath,
-                        "remoteRoot": "/"
-                    }
+                    debugParameters
                 ).then(() => {
                     vscode.window.showInformationMessage('Debug session established', 'Expose Service').then(opt => {
                         if (opt == 'Expose Service') {
@@ -940,6 +934,32 @@ waitForRunningPod = function (name, callback) {
             setTimeout(function () { waitForRunningPod(name, callback) }, 1000);
         });
 };
+
+function getDebugParameters(runtime) {
+    switch (runtime) {
+        case 'node':
+            return {
+                "type": "node",
+                "request": "attach",
+                "name": "Attach to Process",
+                "port": 5858,
+                "localRoot": vscode.workspace.rootPath,
+                "remoteRoot": "/"
+            };
+        case 'python':
+            // Source: https://github.com/DonJayamanne/pythonVSCode/wiki/Debugging:-Remote-Debuging
+            return {
+                "type": "python",
+                "request": "attach",
+                "name": "Attach to Process",
+                "port": 3000,
+                "secret": "TODO_TODO_my_secret_TODO_TODO",
+                "host": "localhost",
+                "localRoot": vscode.workspace.rootPath,
+                "remoteRoot": "/"
+            };
+    }
+}
 
 function exists(kind, name, handler) {
     kubectlInternal('get ' + kind + ' ' + name, function(result, stdout, stderr) {
