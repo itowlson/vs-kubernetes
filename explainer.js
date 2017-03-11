@@ -1,6 +1,4 @@
-/* jslint node: true */
-/* jshint esversion: 6 */
-"use strict";
+'use strict';
 
 function formatExplain(rawText) {
     if (!rawText) {
@@ -22,8 +20,8 @@ function formatExplain(rawText) {
     }
 
     return {
-        'language' : "json",
-        'value' : rawText
+        'language': "json",
+        'value': rawText
     };
 }
 
@@ -36,7 +34,7 @@ function formatField(lines) {
     DESCRIPTION:
         first line
         second line
-    
+
     desired output:
 
     **FIELD:** name <type>
@@ -46,13 +44,13 @@ function formatField(lines) {
     second line
     */
 
-    var formattedLines = lines.map(function(line) {
+    var formattedLines = lines.map(function (line) {
         var formatted = emboldenPrefix(line);
         formatted = removeLeading(formatted);
         return formatted;
-    });
+    }, this);
 
-    return formattedLines.join('\n');
+    return formattedLines.join('\n')
 }
 
 function formatDescription(lines) {
@@ -67,11 +65,11 @@ function formatDescription(lines) {
         field1 <type>
         first line
         second line
-    
+
         field2 <type>
         first line
         second line
-    
+
     desired output:
 
     **DESCRIPTION:**
@@ -81,19 +79,19 @@ function formatDescription(lines) {
     **FIELDS:**
 
     **field1** <type>
-    
+
     first line
     second line
 
     **field2** <type>
-    
+
     first line
     second line
     */
 
     var parserState = 'init';
     var formattedLines = [];
-    var formatted;
+    let formatted;
 
     while (lines.length > 0) {
         var line = lines.shift();
@@ -155,11 +153,11 @@ function formatResource(lines) {
        field1 <type>
          first line
          second line
-    
+
        field2 <type>
          first line
          second line
-    
+
     desired output:
 
     **RESOURCE:** name <type>
@@ -174,19 +172,19 @@ function formatResource(lines) {
     **FIELDS:**
 
     **field1** <type>
-    
+
     first line
     second line
 
     **field2** <type>
-    
+
     first line
     second line
     */
 
     var parserState = 'init';
     var formattedLines = [];
-    var formatted;
+    let formatted;
 
     while (lines.length > 0) {
         var line = lines.shift();
@@ -247,8 +245,8 @@ function emboldenPrefix(line) {
     if (!line) {
         return line;
     }
-    var prefixes = ['FIELD:','FIELDS:','DESCRIPTION:','RESOURCE:'];
-    prefixes.forEach(function(prefix) {
+    var prefixes = ['FIELD:', 'FIELDS:', 'DESCRIPTION:', 'RESOURCE:'];
+    prefixes.forEach(function (prefix) {
         if (line.startsWith(prefix)) {
             line = '**' + prefix + '**' + line.substring(prefix.length);
         }
@@ -260,11 +258,11 @@ function emboldenFieldName(line) {
     if (!line) {
         return line;
     }
-    var parse = line.match(/^(\w+)\s+<(\[\])?\w+>(\s+-required-)?$/);
+    var parse = line.match(/^(\w+)\s+\<(\[\])?\w+\>(\s+-required-)?$/);
     if (parse) {
-        line = '**' + parse[1] + '**' + line.substring(parse[1].length);
+        line = '**' + parse[1] + '**' + line.substring(parse[1].length)
         if (parse[3]) {
-            line = line.replace('-required-', '**[required]**');
+            line = line.replace('-required-', '**[required]**')
         }
     }
     return line;
@@ -274,9 +272,9 @@ function removeLeading(line) {
     if (!line) {
         return line;
     }
-    return line.replace(/^\s+/, '');
+    return line.replace(/^\s+/, '')
 }
 
 module.exports = {
     formatExplain: formatExplain
-};
+}
