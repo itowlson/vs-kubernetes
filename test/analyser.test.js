@@ -19,6 +19,11 @@ suite("Analyser Tests", function() {
         assert.equal('python', analysis.runtime);
     });
 
+    test("Analyser identifies Ruby dockerfiles", function() {
+        var analysis = analyser.analyse('FROM  ruby:2.1-onbuild\nCMD ["./script.rb"]');
+        assert.equal('ruby', analysis.runtime);
+    });
+
     test("Analyser does not identify unknown runtimes", function() {
         var analysis = analyser.analyse('FROM befunge:0.1.0\nCMD befunge clever.bf');
         assert.equal(false, analysis.succeeded);

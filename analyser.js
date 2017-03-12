@@ -56,7 +56,10 @@ function inferRuntime(dockerCmd) {
         return 'node';
     }
     if (command === "python") {
-        return 'python'
+        return 'python';
+    }
+    if (command.endsWith('.rb')) {
+        return 'ruby';
     }
 
     return null;
