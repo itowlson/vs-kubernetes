@@ -20,7 +20,22 @@ suite("Analyser Tests", function() {
     });
 
     test("Analyser identifies Ruby dockerfiles", function() {
+        var analysis = analyser.analyse('FROM  ruby:2.1-onbuild\nCMD ["ruby", "./script.rb"]');
+        assert.equal('ruby', analysis.runtime);
+    });
+
+    test("Analyser identifies Ruby dockerfiles from script extension", function() {
         var analysis = analyser.analyse('FROM  ruby:2.1-onbuild\nCMD ["./script.rb"]');
+        assert.equal('ruby', analysis.runtime);
+    });
+
+    test("Analyser identifies Rails dockerfiles", function() {
+        var analysis = analyser.analyse('FROM  ruby:2.3\nCMD ["rails", "server", "-b", "0.0.0.0"]');
+        assert.equal('ruby', analysis.runtime);
+    });
+
+    test("Analyser identifies Rails dockerfiles (with bin)", function() {
+        var analysis = analyser.analyse('FROM  ruby:2.3\nCMD ["bin/rails", "server", "-b", "0.0.0.0"]');
         assert.equal('ruby', analysis.runtime);
     });
 

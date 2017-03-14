@@ -12,6 +12,9 @@ var yaml = require('js-yaml');
 var dockerfileParse = require('dockerfile-parse');
 var shellLib = null;
 
+// Internal dependencies
+var analyser = require('./analyser');
+
 function shell() {
     if (shellLib == null) {
         shellLib = require('shelljs');
@@ -865,10 +868,23 @@ debugKubernetes = function () {
 _debugInternal = function (name, image) {
     // TODO: optionalize/customize the '-debug'
     // TODO: make this smarter.
-    vscode.window.showInputBox({ prompt: 'Debug command for your container:', placeHolder: 'Example: node debug server.js' }).then(function (cmd) {
-        if (cmd) {
-            _doDebug(name, image, cmd);
-        }
+    vscode.workspace.findFiles('Dockerfile').then(function (files) {
+        vscode.workspace.openTextDocument(files[0]).then(function (doc) {
+            dfbody = doc.getText();
+            var analysis = analyser.analyse(dfbody);
+            if (analysis.succeeded) {
+                var hint = "Example: node debug server.js";
+                switch (analysis.runtime) {
+                    case 'node': hint = "Example: node debug server.js"; break;
+                    case 'ruby': hint = "Example: rdebug-ide --host 0.0.0.0 --port 1234 -- bin/rails server -b 0.0.0.0 -e development"
+                }
+            }
+            vscode.window.showInputBox({ prompt: 'Debug command for your container:', placeHolder: hint }).then(function (cmd) {
+                if (cmd) {
+                    _doDebug(name, image, cmd);
+                }
+            });
+        })
     });
 };
 
@@ -957,6 +973,20 @@ function getDebugParameters(runtime) {
                 "host": "localhost",
                 "localRoot": vscode.workspace.rootPath,
                 "remoteRoot": "/"
+            };
+        case 'ruby':
+            // Source: https://github.com/rubyide/vscode-ruby/wiki/3.-Attaching-to-a-debugger
+            // Server command: rdebug-ide --host 0.0.0.0 --port 1234 -- TARGET_SCRIPT
+            // TODO: is rdebug-ide part of Ruby or do we need to install it on the server?
+            // (answer: it needs to be installed - e.g. part of the gemfile)
+            return {
+                "type": "Ruby",
+                "name": "Attach to Process",
+                "request": "attach",
+                "cwd": vscode.workspace.rootPath,
+                "remoteWorkspaceRoot": "/",
+                "remoteHost": "127.0.0.1",
+                "remotePort": 1234
             };
     }
 }

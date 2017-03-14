@@ -58,6 +58,15 @@ function inferRuntime(dockerCmd) {
     if (command === "python") {
         return 'python';
     }
+    if (command === "rails") {
+        return 'ruby';
+    }
+    if (command === "bin/rails") {
+        return 'ruby';
+    }
+    if (command === "ruby") {
+        return 'ruby';
+    }
     if (command.endsWith('.rb')) {
         return 'ruby';
     }
