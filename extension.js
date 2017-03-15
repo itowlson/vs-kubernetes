@@ -873,24 +873,24 @@ _debugInternal = function (name, image) {
             dfbody = doc.getText();
             var analysis = analyser.analyse(dfbody);
             if (analysis.succeeded) {
-                var hint = "Example: node debug server.js";
+                var hint = "Examples: node debug server.js, rdebug-ide -- bin/rails server, etc.";
                 switch (analysis.runtime) {
                     case 'node': hint = "Example: node debug server.js"; break;
                     case 'ruby': hint = "Example: rdebug-ide --host 0.0.0.0 --port 1234 -- bin/rails server -b 0.0.0.0 -e development"
                 }
             }
             vscode.window.showInputBox({ prompt: 'Debug command for your container:', placeHolder: hint }).then(function (cmd) {
-                if (cmd) {
-                    _doDebug(name, image, cmd);
+                if (cmd instanceof String || typeof cmd === 'string') {
+                    _doDebug(name, image, analysis, cmd);
                 }
             });
         })
     });
 };
 
-_doDebug = function (name, image, cmd) {
+_doDebug = function (name, image, analysis, cmd) {
     var deploymentName = name + "-debug";
-    var runCmd = ' run ' + deploymentName + ' --image=' + image + ' -i --attach=false -- ' + cmd;
+    var runCmd = ' run ' + deploymentName + ' --image=' + image + ' -i --attach=false' + ((cmd != null && cmd.length > 0) ? ' -- ' + cmd : '');
     console.log(runCmd);
     kubectlInternal(runCmd, function (result, stdout, stderr) {
         if (result != 0) {
@@ -906,7 +906,7 @@ _doDebug = function (name, image, cmd) {
             vscode.window.showInformationMessage('Debug pod running as: ' + podName);
 
             waitForRunningPod(podName, function () {
-                var debugParameters = getDebugParameters("node");
+                var debugParameters = getDebugParameters(analysis);
                 kubectl(' port-forward ' + podName + ' '+ debugParameters.port + ':' + debugParameters.port + ' 8000:8000');
                 vscode.commands.executeCommand(
                     'vscode.startDebug',
@@ -951,7 +951,14 @@ waitForRunningPod = function (name, callback) {
         });
 };
 
-function getDebugParameters(runtime) {
+function getDebugParameters(analysis) {
+    if (analysis.succeeded) {
+        return getRuntimeDebugParameters(analysis.runtime);
+    }
+    return getRuntimeDebugParameters('node');
+}
+
+function getRuntimeDebugParameters(runtime) {
     switch (runtime) {
         case 'node':
             return {
@@ -976,9 +983,6 @@ function getDebugParameters(runtime) {
             };
         case 'ruby':
             // Source: https://github.com/rubyide/vscode-ruby/wiki/3.-Attaching-to-a-debugger
-            // Server command: rdebug-ide --host 0.0.0.0 --port 1234 -- TARGET_SCRIPT
-            // TODO: is rdebug-ide part of Ruby or do we need to install it on the server?
-            // (answer: it needs to be installed - e.g. part of the gemfile)
             return {
                 "type": "Ruby",
                 "name": "Attach to Process",
@@ -986,7 +990,8 @@ function getDebugParameters(runtime) {
                 "cwd": vscode.workspace.rootPath,
                 "remoteWorkspaceRoot": "/",
                 "remoteHost": "127.0.0.1",
-                "remotePort": 1234
+                "remotePort": 1234,
+                "port": 1234  // Ruby debugger requires remotePort but extension needs port - so these must be the same!  (TODO: better)
             };
     }
 }
