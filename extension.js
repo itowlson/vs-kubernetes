@@ -28,21 +28,7 @@ var kubectlFound = false;
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 function activate(context) {
-    var bin = vscode.workspace.getConfiguration('vs-kubernetes')['vs-kubernetes.kubectl-path'];
-    if (!bin) {
-        findBinary('kubectl', function (err, output) {
-            if (err || output.length == 0) {
-                vscode.window.showErrorMessage('Could not find "kubectl" binary, extension will not function correctly.');
-            } else {
-                kubectlFound = true;
-            }
-        });
-    } else {
-        kubectlFound = fs.existsSync(bin);
-        if (!kubectlFound) {
-            vscode.window.showErrorMessage(bin + ' does not exist! Extension will not function correctly.');
-        }
-    }
+    checkForKubectl('activation', function() {});
 
     var disposable = vscode.commands.registerCommand('extension.vsKubernetesCreate', function () {
         maybeRunKubernetesCommandForActiveWindow('create -f ');
@@ -102,6 +88,51 @@ function activate(context) {
     vscode.languages.registerHoverProvider({ language: 'yaml', scheme: 'file' }, {
         provideHover: provideHoverYaml
     });
+}
+
+function checkForKubectl(errorMessageMode, handler) {
+    if (kubectlFound) {
+        handler();
+        return;
+    }
+    checkForKubectlInternal(errorMessageMode, handler);
+}
+
+function checkForKubectlInternal(errorMessageMode, handler) {
+    var contextMessage = getCheckKubectlContextMessage(errorMessageMode);
+    var bin = vscode.workspace.getConfiguration('vs-kubernetes')['vs-kubernetes.kubectl-path'];
+    if (!bin) {
+        findBinary('kubectl', function (err, output) {
+            if (err || output.length == 0) {
+                vscode.window.showErrorMessage('Could not find "kubectl" binary.' + contextMessage, 'Learn more').then(
+                    function(str) {
+                        if (str == 'Learn more') {
+                            vscode.window.showInformationMessage('Add kubectl directory to path, or set "vs-kubernetes.kubectl-path" config to kubectl binary.');
+                        }
+                    }
+                );
+            } else {
+                kubectlFound = true;
+                handler();
+            }
+        });
+    } else {
+        kubectlFound = fs.existsSync(bin);
+        if (kubectlFound) {
+            handler();
+        } else {
+            vscode.window.showErrorMessage(bin + ' does not exist!' + contextMessage);
+        }
+    }
+}
+
+function getCheckKubectlContextMessage(errorMessageMode) {
+    if (errorMessageMode == 'activation') {
+        return ' Extension will not function correctly.';
+    } else if (errorMessageMode == 'command') {
+        return ' Cannot execute command.';
+    }
+    return '';
 }
 
 function providerHover(document, position, token, syntax) {
@@ -426,15 +457,14 @@ function kubectl(command) {
 };
 
 function kubectlInternal(command, handler) {
-    if (!kubectlFound) {
-        vscode.window.showErrorMessage('Can not find "kubectl" command line tool.');
-    }
-    var bin = vscode.workspace.getConfiguration('vs-kubernetes')['vs-kubernetes.kubectl-path'];
-    if (!bin) {
-        bin = 'kubectl'
-    }
-    var cmd = bin + ' ' + command
-    shellExec(cmd, handler);
+    checkForKubectl('command', function() {
+        var bin = vscode.workspace.getConfiguration('vs-kubernetes')['vs-kubernetes.kubectl-path'];
+        if (!bin) {
+            bin = 'kubectl'
+        }
+        var cmd = bin + ' ' + command
+        shellExec(cmd, handler);
+    });
 };
 
 function shellExec(cmd, handler) {
