@@ -96,25 +96,24 @@ function activate(context) {
     context.subscriptions.push(disposable);
 
     vscode.languages.registerHoverProvider({ language: 'json', scheme: 'file' }, {
-        provideHover: provideHover
+        provideHover: provideHoverJson
     });
 
-    // TODO: this doesn't work yet.
     vscode.languages.registerHoverProvider({ language: 'yaml', scheme: 'file' }, {
-        provideHover: provideHover
+        provideHover: provideHoverYaml
     });
 }
 
-function provideHover(document, position, token) {
+function providerHover(document, position, token, syntax) {
     if (!explainActive) {
         return null;
     }
     var body = document.getText();
     var obj = {};
     try {
-        obj = JSON.parse(body);
+        obj = syntax.parse(body);
     } catch (err) {
-        // Bad JSON
+        // Bad document
         return null;
     }
     // Not a k8s object.
@@ -122,13 +121,13 @@ function provideHover(document, position, token) {
         return null;
     }
     var property = findProperty(document.lineAt(position.line));
-    var field = JSON.parse(property);
+    var field = syntax.parse(property);
 
-    var parentLine = findParent(document, position.line - 1);
+    var parentLine = syntax.findParent(document, position.line);
     while (parentLine != -1) {
         var parentProperty = findProperty(document.lineAt(parentLine));
-        field = JSON.parse(parentProperty) + '.' + field;
-        parentLine = findParent(document, parentLine - 1);
+        field = syntax.parse(parentProperty) + '.' + field;
+        parentLine = syntax.findParent(document, parentLine);
     }
 
     if (field == 'kind') {
@@ -143,12 +142,30 @@ function provideHover(document, position, token) {
     };
 }
 
+function provideHoverJson(document, position, token) {
+    var syntax = {
+        parse: function(text) { return JSON.parse(text); },
+        findParent: function(document, parentLine) { return findParentJson(document, parentLine - 1); }
+    };
+
+    return providerHover(document, position, token, syntax);
+}
+
+function provideHoverYaml(document, position, token) {
+    var syntax = {
+        parse: function(text) { return yaml.safeLoad(text); },
+        findParent: function(document, parentLine) { return findParentYaml(document, parentLine); }
+    };
+
+    return providerHover(document, position, token, syntax);
+}
+
 function findProperty(line) {
     var ix = line.text.indexOf(":");
     return line.text.substring(line.firstNonWhitespaceCharacterIndex, ix);
 };
 
-function findParent(document, line) {
+function findParentJson(document, line) {
     var count = 1;
     while (line >= 0) {
         var txt = document.lineAt(line);
@@ -172,6 +189,32 @@ function findParent(document, line) {
     }
     return line;
 };
+
+function findParentYaml(document, line) {
+    var indent = yamlIndentLevel(document.lineAt(line).text)
+    while (line >= 0) {
+        var txt = document.lineAt(line);
+        if (yamlIndentLevel(txt.text) < indent) {
+            return line;
+        }
+        line = line - 1;
+    }
+    return line;
+};
+
+function yamlIndentLevel(str) {
+    var i = 0;
+    while (true) {
+        if (str.length <= i || !isYamlIndentChar(str.charAt(i))) {
+            return i;
+        }
+        ++i;
+    }
+}
+
+function isYamlIndentChar(ch) {
+    return ch == ' ' || ch == '-';
+}
 
 function explain(obj, field, fn) {
     if (!obj.kind) {
