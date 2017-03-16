@@ -12,6 +12,9 @@ var yaml = require('js-yaml');
 var dockerfileParse = require('dockerfile-parse');
 var shellLib = null;
 
+// Internal dependencies
+var explainer = require('./explainer');
+
 function shell() {
     if (shellLib == null) {
         shellLib = require('shelljs');
@@ -134,10 +137,7 @@ function provideHover(document, position, token) {
     return {
         'then': function (fn) {
             explain(obj, field, function (msg) {
-                fn(new vscode.Hover({
-                    'language': 'json',
-                    'value': msg
-                }));
+                fn(new vscode.Hover(explainer.formatExplain(msg)));
             });
         }
     };
