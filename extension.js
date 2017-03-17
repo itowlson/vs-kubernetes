@@ -41,7 +41,33 @@ function activate(context) {
 
     disposable = vscode.commands.registerCommand('extension.vsKubernetesDelete', function () {
         findKindNameOrPrompt().then(function (kindName) {
-            kubectl('delete ' + kindName);
+            if (kindName === '') {
+                vscode.window.showQuickPick(['deployment', 'pod', 'service']).then(function (kind) {
+                    if (kind) {
+                        kubectlInternal("get " + kind, function(code, stdout, stderr) {
+                            if (code == 0) {
+                                var lines = stdout.split('\n');
+                                lines.shift();
+                                if (lines.length > 0) {
+                                    var names = lines.map(function (line) { return parseName(line); });
+                                    vscode.window.showQuickPick(names).then(function (name) {
+                                        if (name) {
+                                            kindName = kind + '/' + name;
+                                            kubectl('delete ' + kindName);  // TOOO: deduplicate!  All this guff around quick picks should be folded in with fKNOP into a single async method
+                                        }
+                                    });
+                                } else {
+                                    vscode.window.showInformationMessage("No resources of type " + choice + " in cluster");
+                                }
+                            } else {
+                                vscode.window.showErrorMessage(stderr);
+                            }
+                        });
+                    }
+                });
+            } else if (kindName) {
+                kubectl('delete ' + kindName);
+            }
         });
     });
     context.subscriptions.push(disposable);
@@ -651,7 +677,11 @@ function findKindNameOrPrompt() {
             }
         };
     }
-    return vscode.window.showInputBox({ prompt: "What resource do you want to load?", });
+    return vscode.window.showInputBox({ prompt: "What resource do you want to load?", placeHolder: 'Empty string to be prompted' });
+}
+
+function parseName(line) {
+    return line.split(' ')[0];
 }
 
 function curry(fn, arg) {
