@@ -81,6 +81,9 @@ function activate(context) {
     disposable = vscode.commands.registerCommand('extension.vsKubernetesDebug', debugKubernetes);
     context.subscriptions.push(disposable);
 
+    disposable = vscode.commands.registerCommand('extension.vsKubernetesRemoveDebug', removeDebugKubernetes);
+    context.subscriptions.push(disposable);
+
     vscode.languages.registerHoverProvider({ language: 'json', scheme: 'file' }, {
         provideHover: provideHoverJson
     });
@@ -743,7 +746,7 @@ function showOutput(text, name) {
     var channel = vscode.window.createOutputChannel(name)
     channel.append(text);
     channel.show();
-};
+}
 
 function getPorts() {
     var file = vscode.workspace.rootPath + '/Dockerfile';
@@ -935,7 +938,7 @@ debugKubernetes = function () {
 _debugInternal = function (name, image) {
     // TODO: optionalize/customize the '-debug'
     // TODO: make this smarter.
-    vscode.window.showInputBox('Debug command for your container:').then(function (cmd) {
+    vscode.window.showInputBox({ prompt: 'Debug command for your container:', placeHolder: 'Example: node debug server.js' }).then(function (cmd) {
         if (cmd) {
             _doDebug(name, image, cmd);
         }
@@ -943,8 +946,10 @@ _debugInternal = function (name, image) {
 };
 
 _doDebug = function (name, image, cmd) {
-    console.log(' run ' + name + '-debug --image=' + image + ' -i --attach=false -- ' + cmd);
-    kubectlInternal(' run ' + name + '-debug --image=' + image + ' -i --attach=false -- ' + cmd, function (result, stdout, stderr) {
+    var deploymentName = name + "-debug";
+    var runCmd = ' run ' + deploymentName + ' --image=' + image + ' -i --attach=false -- ' + cmd;
+    console.log(runCmd);
+    kubectlInternal(runCmd, function (result, stdout, stderr) {
         if (result != 0) {
             vscode.window.showErrorMessage('Failed to start debug container: ' + stderr);
             return;
@@ -954,11 +959,11 @@ _doDebug = function (name, image, cmd) {
                 vscode.window.showErrorMessage('Failed to find debug pod.');
                 return;
             }
-            var name = podList.items[0].metadata.name;
-            vscode.window.showInformationMessage('Debug pod running as: ' + name);
+            var podName = podList.items[0].metadata.name;
+            vscode.window.showInformationMessage('Debug pod running as: ' + podName);
 
-            waitForRunningPod(name, function () {
-                kubectl(' port-forward ' + name + ' 5858:5858 8000:8000');
+            waitForRunningPod(podName, function () {
+                kubectl(' port-forward ' + podName + ' 5858:5858 8000:8000');
                 vscode.commands.executeCommand(
                     'vscode.startDebug',
                     {
@@ -969,7 +974,24 @@ _doDebug = function (name, image, cmd) {
                         "localRoot": vscode.workspace.rootPath,
                         "remoteRoot": "/"
                     }
-                ).then(() => { }, err => {
+                ).then(() => {
+                    vscode.window.showInformationMessage('Debug session established', 'Expose Service').then(opt => {
+                        if (opt == 'Expose Service') {
+                            vscode.window.showInputBox({ prompt: 'Expose on which port?', placeHolder: '80'}).then(port => {
+                                if (port) {
+                                    var exposeCmd = "expose deployment " + deploymentName + " --type=LoadBalancer --port=" + port;
+                                    kubectlInternal(exposeCmd, function (result, stdout, stderr) {
+                                        if (result != 0) {
+                                            vscode.window.showErrorMessage('Failed to expose deployment: ' + stderr);
+                                            return;
+                                        }
+                                        vscode.window.showInformationMessage('Deployment exposed. Run Kubernetes Get > service ' + deploymentName + ' for IP address');
+                                    });
+                                }
+                            });
+                        }
+                    });
+                }, err => {
                     vscode.window.showInformationMessage('Error: ' + err.message);
                 });
             });
@@ -991,6 +1013,41 @@ waitForRunningPod = function (name, callback) {
             setTimeout(function () { waitForRunningPod(name, callback) }, 1000);
         });
 };
+
+function exists(kind, name, handler) {
+    kubectlInternal('get ' + kind + ' ' + name, function(result, stdout, stderr) {
+        handler(result == 0);
+    });
+}
+
+function deploymentExists(deploymentName, handler) {
+    exists('deployments', deploymentName, handler);
+}
+
+function serviceExists(serviceName, handler) {
+    exists('services', serviceName, handler);
+}
+
+function removeDebugKubernetes() {
+    findNameAndImage().then(function (name, image) {
+        var deploymentName = name + "-debug";
+        deploymentExists(deploymentName, d => {
+            serviceExists(deploymentName, s => {
+                if (!d && !s) {
+                    vscode.window.showInformationMessage(deploymentName + ': nothing to clean up');
+                    return;
+                }
+                var toDelete = d ? ("deployment" + (s ? " and service" : "")) : "service";
+                vscode.window.showWarningMessage("This will delete " + toDelete + " " + deploymentName, 'Delete').then(opt => {
+                    if (opt === 'Delete') {
+                        if (s) { kubectl('delete service ' + deploymentName); }
+                        if (d) { kubectl('delete deployment ' + deploymentName); }
+                    }
+                });
+            })
+        });
+    });
+}
 
 exports.activate = activate;
 

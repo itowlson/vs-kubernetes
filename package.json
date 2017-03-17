@@ -25,7 +25,8 @@
         "onCommand:extension.vsKubernetesExec",
         "onCommand:extension.vsKubernetesTerminal",
         "onCommand:extension.vsKubernetesDiff",
-        "onCommand:extension.vsKubernetesDebug"
+        "onCommand:extension.vsKubernetesDebug",
+        "onCommand:extension.vsKubernetesRemoveDebug"
     ],
     "main": "./extension",
     "contributes": {
@@ -90,6 +91,9 @@
         }, {
             "command": "extension.vsKubernetesDebug",
             "title": "Kubernetes Debug"
+        }, {
+            "command": "extension.vsKubernetesRemoveDebug",
+            "title": "Kubernetes Remove Debug"
         }]
     },
     "scripts": {
