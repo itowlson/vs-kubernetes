@@ -498,9 +498,7 @@ function getKubernetes() {
         maybeRunKubernetesCommandForActiveWindow('get --no-headers -o wide -f ');
         return;
     }
-    vscode.window.showInputBox({
-        prompt: "What resource do you want to get?",
-    }).then(function (value) {
+    findKindNameOrPrompt('get', function(value) {
         kubectl(" get " + value + " -o wide --no-headers");
     });
 }
