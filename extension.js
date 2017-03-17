@@ -532,6 +532,10 @@ function findNameAndImage() {
 };
 
 function _findNameAndImageInternal(fn) {
+    if (vscode.workspace.rootPath === undefined) {
+        vscode.window.showErrorMessage("This command requires an open folder.");
+        return;
+    }
     var name = path.basename(vscode.workspace.rootPath);
     findVersion().then(function (version) {
         var image = name + ":" + version;
@@ -561,12 +565,14 @@ function buildPushThenExec(fn) {
                         vscode.window.showInformationMessage(image + ' pushed.');
                         fn(name, image);
                     } else {
-                        vscode.window.showErrorMessage('Image push failed.');
+                        vscode.window.showErrorMessage('Image push failed. See Output window for details.');
+                        showOutput(stderr, "Docker");
                         console.log(stderr);
                     }
                 });
             } else {
-                vscode.window.showErrorMessage('Image build failed.');
+                vscode.window.showErrorMessage('Image build failed. See Output window for details.');
+                showOutput(stderr, "Docker");
                 console.log(stderr);
             }
         });
@@ -700,8 +706,12 @@ function kubectlOutput(result, stdout, stderr, name) {
         vscode.window.showErrorMessage("Command failed: " + stderr);
         return;
     }
+    showOutput(stdout, name);
+};
+
+function showOutput(text, name) {
     var channel = vscode.window.createOutputChannel(name)
-    channel.append(stdout);
+    channel.append(text);
     channel.show();
 };
 
