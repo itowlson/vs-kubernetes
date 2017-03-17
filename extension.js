@@ -40,7 +40,7 @@ function activate(context) {
     context.subscriptions.push(disposable);
 
     disposable = vscode.commands.registerCommand('extension.vsKubernetesDelete', function () {
-        findKindNameOrPrompt(function (kindName) {
+        findKindNameOrPrompt('delete', function (kindName) {
             if (kindName) {
                 kubectl('delete ' + kindName);
             }
@@ -644,10 +644,10 @@ function findKindNameForText(text) {
     }
 }
 
-function findKindNameOrPrompt(handler) {
+function findKindNameOrPrompt(descriptionVerb, handler) {
     var kindName = findKindName();
     if (kindName === null) {
-        vscode.window.showInputBox({ prompt: "What resource do you want to load?", placeHolder: 'Empty string to be prompted' }).then(function (resource) {
+        vscode.window.showInputBox({ prompt: "What resource do you want to " + descriptionVerb + "?", placeHolder: 'Empty string to be prompted' }).then(function (resource) {
             if (resource === '') {
                 quickPickKindName(handler);
             } else {
@@ -808,7 +808,7 @@ function getPorts() {
 }
 
 function describeKubernetes() {
-    findKindNameOrPrompt(function (value) {
+    findKindNameOrPrompt('describe', function (value) {
         var fn = curry(kubectlOutput, value + "-describe");
         kubectlInternal(' describe ' + value, fn);
     });
