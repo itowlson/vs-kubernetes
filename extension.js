@@ -714,7 +714,7 @@ function selectPodForApp(callback) {
             var ix = value.indexOf('/');
             var name = value.substring(ix + 1);
             for (var i = 0; i < podList.items.length; i++) {
-                if (podList.items[i].metadata.name = name) {
+                if (podList.items[i].metadata.name == name) {
                     callback(podList.items[i]);
                 }
             }
