@@ -16,7 +16,7 @@ var shellLib = null;
 var explainer = require('./explainer');
 
 function shell() {
-    if (shellLib == null) {
+    if (shellLib === null) {
         shellLib = require('shelljs');
     }
     return shellLib;
@@ -106,7 +106,7 @@ function checkForKubectlInternal(errorMessageMode, handler) {
     var bin = vscode.workspace.getConfiguration('vs-kubernetes')['vs-kubernetes.kubectl-path'];
     if (!bin) {
         findBinary('kubectl', function (err, output) {
-            if (err || output.length == 0) {
+            if (err || output.length === 0) {
                 vscode.window.showErrorMessage('Could not find "kubectl" binary.' + contextMessage, 'Learn more').then(
                     function(str) {
                         if (str == 'Learn more') {
@@ -208,7 +208,7 @@ function findParentJson(document, line) {
         }
         if (txt.text.indexOf('{') != -1) {
             count = count - 1;
-            if (count == 0) {
+            if (count === 0) {
                 break;
             }
         }
@@ -260,7 +260,7 @@ function explain(obj, field, fn) {
         ref = ref + "." + field;
     }
     kubectlInternal(' explain ' + ref, function (result, stdout, stderr) {
-        if (result != 0) {
+        if (result !== 0) {
             vscode.window.showErrorMessage("Failed to run explain: " + stderr);
             return;
         }
@@ -410,7 +410,7 @@ function loadKubernetes() {
         prompt: "What resource do you want to load?",
     }).then(function (value) {
         kubectlInternal(" -o json get " + value, function (result, stdout, stderr) {
-            if (result != 0) {
+            if (result !== 0) {
                 vscode.window.showErrorMessage("Get command failed: " + stderr);
                 return;
             }
@@ -432,7 +432,7 @@ function loadKubernetes() {
 }
 
 function kubectlDone(result, stdout, stderr) {
-    if (result != 0) {
+    if (result !== 0) {
         vscode.window.showErrorMessage("Kubectl command failed: " + stderr);
         console.log(stderr);
         return;
@@ -522,7 +522,7 @@ function findVersionInternal(fn) {
         'async': true,
     };
     shell().exec('git describe --always --dirty', opts, function (code, stdout, stderr) {
-        if (code != 0) {
+        if (code !== 0) {
             vscode.window.showErrorMessage('git log returned: ' + code);
             console.log(stderr);
             fn('error');
@@ -534,7 +534,7 @@ function findVersionInternal(fn) {
 
 function findPods(labelQuery, callback) {
     kubectlInternal(' get pods -o json -l ' + labelQuery, function (result, stdout, stderr) {
-        if (result != 0) {
+        if (result !== 0) {
             vscode.window.showErrorMessage("Kubectl command failed: " + stderr);
             return;
         }
@@ -591,10 +591,10 @@ function runKubernetes() {
 function buildPushThenExec(fn) {
     findNameAndImage().then(function (name, image) {
         shellExec('docker build -t ' + image + ' .', function(result, stdout, stderr) {
-            if (result == 0) {
+            if (result === 0) {
                 vscode.window.showInformationMessage(image + ' built.');
                 shellExec('docker push ' + image, function(result, stdout, stderr) {
-                    if (result == 0) {
+                    if (result === 0) {
                         vscode.window.showInformationMessage(image + ' pushed.');
                         fn(name, image);
                     } else {
@@ -640,7 +640,7 @@ function findKindNameForText(text) {
 
 function findKindNameOrPrompt() {
     var kindName = findKindName();
-    if (kindName != null) {
+    if (kindName !== null) {
         return {
             'then': function (fn) {
                 fn(kindName)
@@ -684,7 +684,7 @@ function findPod(callback) {
 
 function selectPodForApp(callback) {
     findPodsForApp(function (podList) {
-        if (podList.items.length == 0) {
+        if (podList.items.length === 0) {
             vscode.window.showErrorMessage("Couldn't find any relevant pods.");
             callback(null);
             return;
@@ -735,7 +735,7 @@ function getLogs(pod) {
 }
 
 function kubectlOutput(result, stdout, stderr, name) {
-    if (result != 0) {
+    if (result !== 0) {
         vscode.window.showErrorMessage("Command failed: " + stderr);
         return;
     }
@@ -801,7 +801,7 @@ function execKubernetes(isTerminal) {
     vscode.window.showInputBox(
         opts
     ).then(function (cmd) {
-        if (!cmd || cmd.length == 0) {
+        if (!cmd || cmd.length === 0) {
             return;
         }
         selectPodForApp(function (pod) {
@@ -839,7 +839,7 @@ function syncKubernetes() {
             };
             var cmd = 'git checkout ' + pieces[1];
             shell().exec(cmd, opts, function (code, stdout, stderr) {
-                if (code != 0) {
+                if (code !== 0) {
                     vscode.window.showErrorMessage('git log returned: ' + result.code);
                     return 'error';
                 }
@@ -912,7 +912,7 @@ var diffKubernetes = function (callback) {
             return;
         }
         kubectlInternal(' get -o json ' + kindName, function (result, stdout, stderr) {
-            if (result != 0) {
+            if (result !== 0) {
                 vscode.window.showErrorMessage('Error running command: ' + stderr);
                 return;
             }
@@ -950,12 +950,12 @@ var _doDebug = function (name, image, cmd) {
     var runCmd = ' run ' + deploymentName + ' --image=' + image + ' -i --attach=false -- ' + cmd;
     console.log(runCmd);
     kubectlInternal(runCmd, function (result, stdout, stderr) {
-        if (result != 0) {
+        if (result !== 0) {
             vscode.window.showErrorMessage('Failed to start debug container: ' + stderr);
             return;
         }
         findDebugPodsForApp(function (podList) {
-            if (podList.items.length == 0) {
+            if (podList.items.length === 0) {
                 vscode.window.showErrorMessage('Failed to find debug pod.');
                 return;
             }
@@ -981,7 +981,7 @@ var _doDebug = function (name, image, cmd) {
                                 if (port) {
                                     var exposeCmd = "expose deployment " + deploymentName + " --type=LoadBalancer --port=" + port;
                                     kubectlInternal(exposeCmd, function (result, stdout, stderr) {
-                                        if (result != 0) {
+                                        if (result !== 0) {
                                             vscode.window.showErrorMessage('Failed to expose deployment: ' + stderr);
                                             return;
                                         }
@@ -1002,7 +1002,7 @@ var _doDebug = function (name, image, cmd) {
 var waitForRunningPod = function (name, callback) {
     kubectlInternal(' get pods ' + name + ' -o jsonpath --template="{.status.phase}"',
         function (result, stdout, stderr) {
-            if (result != 0) {
+            if (result !== 0) {
                 vscode.window.showErrorMessage('Failed to run command (' + result + ') ' + stderr);
                 return;
             }
@@ -1016,7 +1016,7 @@ var waitForRunningPod = function (name, callback) {
 
 function exists(kind, name, handler) {
     kubectlInternal('get ' + kind + ' ' + name, function(result, stdout, stderr) {
-        handler(result == 0);
+        handler(result === 0);
     });
 }
 

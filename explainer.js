@@ -111,7 +111,7 @@ function formatDescription(lines) {
                 }
                 break;
             case 'field-first':
-                if (line.length == 0) {
+                if (line.length === 0) {
                     break;
                 }
                 var formatted = removeLeading(line);
@@ -120,7 +120,7 @@ function formatDescription(lines) {
                 parserState = 'field-rest';
                 break;
             case 'field-rest':
-                if (line.length == 0) {
+                if (line.length === 0) {
                     parserState = 'fields-none';
                     formattedLines.push(line);
                     break;
@@ -215,7 +215,7 @@ function formatResource(lines) {
                 }
                 break;
             case 'field-first':
-                if (line.length == 0) {
+                if (line.length === 0) {
                     break;
                 }
                 var formatted = removeLeading(line);
@@ -224,7 +224,7 @@ function formatResource(lines) {
                 parserState = 'field-rest';
                 break;
             case 'field-rest':
-                if (line.length == 0) {
+                if (line.length === 0) {
                     parserState = 'fields-none';
                     formattedLines.push(line);
                     break;
