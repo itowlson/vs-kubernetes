@@ -50,7 +50,7 @@ function formatField(lines) {
         var formatted = emboldenPrefix(line);
         formatted = removeLeading(formatted);
         return formatted;
-    }, this);
+    });
 
     return formattedLines.join('\n');
 }
@@ -260,7 +260,7 @@ function emboldenFieldName(line) {
     if (!line) {
         return line;
     }
-    var parse = line.match(/^(\w+)\s+\<(\[\])?\w+\>(\s+-required-)?$/);
+    var parse = line.match(/^(\w+)\s+<(\[\])?\w+>(\s+-required-)?$/);
     if (parse) {
         line = '**' + parse[1] + '**' + line.substring(parse[1].length);
         if (parse[3]) {
