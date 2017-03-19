@@ -870,7 +870,7 @@ function findBinary(binName, callback) {
     });
 };
 
-applyKubernetes = function () {
+var applyKubernetes = function () {
     diffKubernetes(function () {
         vscode.window.showInformationMessage(
             'Do you wish to apply this change?',
@@ -885,13 +885,13 @@ applyKubernetes = function () {
     });
 };
 
-handleError = function (err) {
+var handleError = function (err) {
     if (err) {
         vscode.window.showErrorMessage(err);
     }
 };
 
-diffKubernetes = function (callback) {
+var diffKubernetes = function (callback) {
     getTextForActiveWindow(function (data, file) {
         console.log(data, file);
         var kindName = null;
@@ -931,11 +931,11 @@ diffKubernetes = function (callback) {
     });
 };
 
-debugKubernetes = function () {
+var debugKubernetes = function () {
     buildPushThenExec(_debugInternal);
-}
+};
 
-_debugInternal = function (name, image) {
+var _debugInternal = function (name, image) {
     // TODO: optionalize/customize the '-debug'
     // TODO: make this smarter.
     vscode.window.showInputBox({ prompt: 'Debug command for your container:', placeHolder: 'Example: node debug server.js' }).then(function (cmd) {
@@ -945,7 +945,7 @@ _debugInternal = function (name, image) {
     });
 };
 
-_doDebug = function (name, image, cmd) {
+var _doDebug = function (name, image, cmd) {
     var deploymentName = name + "-debug";
     var runCmd = ' run ' + deploymentName + ' --image=' + image + ' -i --attach=false -- ' + cmd;
     console.log(runCmd);
@@ -999,7 +999,7 @@ _doDebug = function (name, image, cmd) {
     });
 };
 
-waitForRunningPod = function (name, callback) {
+var waitForRunningPod = function (name, callback) {
     kubectlInternal(' get pods ' + name + ' -o jsonpath --template="{.status.phase}"',
         function (result, stdout, stderr) {
             if (result != 0) {
