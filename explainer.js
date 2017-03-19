@@ -49,7 +49,7 @@ function formatField(lines) {
         return formatted;
     }, this);
 
-    return formattedLines.join('\n')
+    return formattedLines.join('\n');
 }
 
 function formatDescription(lines) {
@@ -257,9 +257,9 @@ function emboldenFieldName(line) {
     }
     var parse = line.match(/^(\w+)\s+\<(\[\])?\w+\>(\s+-required-)?$/);
     if (parse) {
-        line = '**' + parse[1] + '**' + line.substring(parse[1].length)
+        line = '**' + parse[1] + '**' + line.substring(parse[1].length);
         if (parse[3]) {
-            line = line.replace('-required-', '**[required]**')
+            line = line.replace('-required-', '**[required]**');
         }
     }
     return line;
@@ -269,9 +269,9 @@ function removeLeading(line) {
     if (!line) {
         return line;
     }
-    return line.replace(/^\s+/, '')
+    return line.replace(/^\s+/, '');
 }
 
 module.exports = {
     formatExplain: formatExplain
-}
+};
