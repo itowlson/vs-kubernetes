@@ -372,10 +372,6 @@ function getTextForActiveWindow(callback) {
         callback(null, null);
         return;
     }
-    var namespace = vscode.workspace.getConfiguration('vs-kubernetes')['vs-kubernetes.namespace'];
-    if (namespace) {
-        command = command + "--namespace " + namespace + " ";
-    }
     var text;
     if (editor.selection) {
         text = editor.document.getText(editor.selection);
@@ -849,7 +845,7 @@ function syncKubernetes() {
             var cmd = 'git checkout ' + pieces[1];
             shell().exec(cmd, opts, function (code, stdout, stderr) {
                 if (code !== 0) {
-                    vscode.window.showErrorMessage('git log returned ' + result.code + ': see output window for details');
+                    vscode.window.showErrorMessage('git log returned ' + code + ': see output window for details');
                     showOutput(stderr, 'Kubernetes sync');
                     return 'error';
                 }
@@ -859,6 +855,8 @@ function syncKubernetes() {
 }
 
 function findBinary(binName, callback) {
+    var cmd;
+    var opts;
     if (process.platform == 'win32') {
         cmd = 'where.exe ' + binName + '.exe';
     } else {
