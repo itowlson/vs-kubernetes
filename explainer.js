@@ -93,12 +93,13 @@ function formatDescription(lines) {
 
     var parserState = 'init';
     var formattedLines = [];
+    var formatted;
 
     while (lines.length > 0) {
         var line = lines.shift();
         switch (parserState) {
             case 'init':
-                var formatted = emboldenPrefix(line);
+                formatted = emboldenPrefix(line);
                 formattedLines.push(formatted);
                 if (formatted.startsWith('**FIELD')) {
                     formattedLines.push("");
@@ -106,7 +107,7 @@ function formatDescription(lines) {
                 }
                 break;
             case 'fields-none':
-                var formatted = removeLeading(line);
+                formatted = removeLeading(line);
                 formatted = emboldenFieldName(formatted);
                 formattedLines.push(formatted);
                 if (formatted.startsWith('**')) {
@@ -117,7 +118,7 @@ function formatDescription(lines) {
                 if (line.length === 0) {
                     break;
                 }
-                var formatted = removeLeading(line);
+                formatted = removeLeading(line);
                 formattedLines.push("");
                 formattedLines.push(formatted);
                 parserState = 'field-rest';
@@ -128,7 +129,7 @@ function formatDescription(lines) {
                     formattedLines.push(line);
                     break;
                 }
-                var formatted = removeLeading(line);
+                formatted = removeLeading(line);
                 formattedLines.push(formatted);
                 break;
         }
@@ -185,12 +186,13 @@ function formatResource(lines) {
 
     var parserState = 'init';
     var formattedLines = [];
+    var formatted;
 
     while (lines.length > 0) {
         var line = lines.shift();
         switch (parserState) {
             case 'init':
-                var formatted = emboldenPrefix(line);
+                formatted = emboldenPrefix(line);
                 formattedLines.push(formatted);
                 if (formatted.startsWith('**DESCRIPTION')) {
                     parserState = 'description-body';
@@ -201,7 +203,7 @@ function formatResource(lines) {
                 }
                 break;
             case 'description-body':
-                var formatted = emboldenPrefix(line);
+                formatted = emboldenPrefix(line);
                 formatted = removeLeading(formatted);
                 formattedLines.push(formatted);
                 if (formatted.startsWith('**FIELD')) {
@@ -210,7 +212,7 @@ function formatResource(lines) {
                 }
                 break;
             case 'fields-none':
-                var formatted = removeLeading(line);
+                formatted = removeLeading(line);
                 formatted = emboldenFieldName(formatted);
                 formattedLines.push(formatted);
                 if (formatted.startsWith('**')) {
@@ -221,7 +223,7 @@ function formatResource(lines) {
                 if (line.length === 0) {
                     break;
                 }
-                var formatted = removeLeading(line);
+                formatted = removeLeading(line);
                 formattedLines.push("");
                 formattedLines.push(formatted);
                 parserState = 'field-rest';
@@ -232,7 +234,7 @@ function formatResource(lines) {
                     formattedLines.push(line);
                     break;
                 }
-                var formatted = removeLeading(line);
+                formatted = removeLeading(line);
                 formattedLines.push(formatted);
                 break;
         }

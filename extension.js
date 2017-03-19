@@ -205,8 +205,9 @@ function findProperty(line) {
 
 function findParentJson(document, line) {
     var count = 1;
+    var txt;
     while (line >= 0) {
-        var txt = document.lineAt(line);
+        txt = document.lineAt(line);
         if (txt.text.indexOf('}') != -1) {
             count = count + 1;
         }
@@ -219,7 +220,7 @@ function findParentJson(document, line) {
         line = line - 1;
     }
     while (line >= 0) {
-        var txt = document.lineAt(line);
+        txt = document.lineAt(line);
         if (txt.text.indexOf(':') != -1) {
             return line;
         }
@@ -316,19 +317,21 @@ function maybeRunKubernetesCommandForActiveWindow(command) {
     if (namespace) {
         command = command + "--namespace " + namespace + " ";
     }
+    var text;
+    var proc;
     if (editor.selection) {
-        var text = editor.document.getText(editor.selection);
+        text = editor.document.getText(editor.selection);
         if (text.length > 0) {
-            var proc = kubectl(command + "-");
+            proc = kubectl(command + "-");
             proc.stdin.write(text);
             proc.stdin.end();
             return true;
         }
     }
     if (editor.document.isUntitled) {
-        var text = editor.document.getText();
+        text = editor.document.getText();
         if (text.length > 0) {
-            var proc = kubectl(command + "-");
+            proc = kubectl(command + "-");
             proc.stdin.write(text);
             proc.stdin.end();
             return true;
@@ -373,15 +376,16 @@ function getTextForActiveWindow(callback) {
     if (namespace) {
         command = command + "--namespace " + namespace + " ";
     }
+    var text;
     if (editor.selection) {
-        var text = editor.document.getText(editor.selection);
+        text = editor.document.getText(editor.selection);
         if (text.length > 0) {
             callback(text, null);
             return;
         }
     }
     if (editor.document.isUntitled) {
-        var text = editor.document.getText();
+        text = editor.document.getText();
         if (text.length > 0) {
             callback(text, null);
             return;
@@ -812,12 +816,13 @@ function execKubernetes(isTerminal) {
             if (!pod || !pod.metadata) {
                 return;
             }
+            var execCmd;
             if (isTerminal) {
-                var execCmd = ['exec', '-it', pod.metadata.name, cmd];
+                execCmd = ['exec', '-it', pod.metadata.name, cmd];
                 var term = vscode.window.createTerminal('exec', 'kubectl', execCmd);
                 term.show();
             } else {
-                var execCmd = ' exec ' + pod.metadata.name + ' ' + cmd;
+                execCmd = ' exec ' + pod.metadata.name + ' ' + cmd;
                 var fn = curry(kubectlOutput, pod.metadata.name + "-exec");
                 kubectlInternal(execCmd, fn);
             }
