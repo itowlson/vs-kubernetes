@@ -275,7 +275,7 @@ function explain(obj, field, fn) {
 
 function explainActiveWindow() {
     var editor = vscode.window.activeTextEditor;
-    var bar = initStatusBar(editor);
+    var bar = initStatusBar();
     if (!editor) {
         vscode.window.showErrorMessage("No active editor!");
         bar.hide();
@@ -294,7 +294,7 @@ function explainActiveWindow() {
 
 var statusBarItem;
 
-function initStatusBar(editor) {
+function initStatusBar() {
     if (!statusBarItem) {
         statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
         statusBarItem.text = "kubernetes-api-explain";
@@ -849,7 +849,8 @@ function syncKubernetes() {
             var cmd = 'git checkout ' + pieces[1];
             shell().exec(cmd, opts, function (code, stdout, stderr) {
                 if (code !== 0) {
-                    vscode.window.showErrorMessage('git log returned: ' + result.code);
+                    vscode.window.showErrorMessage('git log returned ' + result.code + ': see output window for details');
+                    showOutput(stderr, 'Kubernetes sync');
                     return 'error';
                 }
             });
@@ -1024,7 +1025,7 @@ var waitForRunningPod = function (name, callback) {
 };
 
 function exists(kind, name, handler) {
-    kubectlInternal('get ' + kind + ' ' + name, function(result, stdout, stderr) {
+    kubectlInternal('get ' + kind + ' ' + name, function(result) {
         handler(result === 0);
     });
 }
@@ -1038,7 +1039,7 @@ function serviceExists(serviceName, handler) {
 }
 
 function removeDebugKubernetes() {
-    findNameAndImage().then(function (name, image) {
+    findNameAndImage().then(function (name) {
         var deploymentName = name + "-debug";
         deploymentExists(deploymentName, d => {
             serviceExists(deploymentName, s => {
