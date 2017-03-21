@@ -1,3 +1,6 @@
+/* jslint node: true */
+/* jshint esversion: 6 */
+"use strict";
 
 function formatExplain(rawText) {
     if (!rawText) {
@@ -47,9 +50,9 @@ function formatField(lines) {
         var formatted = emboldenPrefix(line);
         formatted = removeLeading(formatted);
         return formatted;
-    }, this);
+    });
 
-    return formattedLines.join('\n')
+    return formattedLines.join('\n');
 }
 
 function formatDescription(lines) {
@@ -90,12 +93,13 @@ function formatDescription(lines) {
 
     var parserState = 'init';
     var formattedLines = [];
+    var formatted;
 
     while (lines.length > 0) {
         var line = lines.shift();
         switch (parserState) {
             case 'init':
-                var formatted = emboldenPrefix(line);
+                formatted = emboldenPrefix(line);
                 formattedLines.push(formatted);
                 if (formatted.startsWith('**FIELD')) {
                     formattedLines.push("");
@@ -103,7 +107,7 @@ function formatDescription(lines) {
                 }
                 break;
             case 'fields-none':
-                var formatted = removeLeading(line);
+                formatted = removeLeading(line);
                 formatted = emboldenFieldName(formatted);
                 formattedLines.push(formatted);
                 if (formatted.startsWith('**')) {
@@ -111,21 +115,21 @@ function formatDescription(lines) {
                 }
                 break;
             case 'field-first':
-                if (line.length == 0) {
+                if (line.length === 0) {
                     break;
                 }
-                var formatted = removeLeading(line);
+                formatted = removeLeading(line);
                 formattedLines.push("");
                 formattedLines.push(formatted);
                 parserState = 'field-rest';
                 break;
             case 'field-rest':
-                if (line.length == 0) {
+                if (line.length === 0) {
                     parserState = 'fields-none';
                     formattedLines.push(line);
                     break;
                 }
-                var formatted = removeLeading(line);
+                formatted = removeLeading(line);
                 formattedLines.push(formatted);
                 break;
         }
@@ -182,12 +186,13 @@ function formatResource(lines) {
 
     var parserState = 'init';
     var formattedLines = [];
+    var formatted;
 
     while (lines.length > 0) {
         var line = lines.shift();
         switch (parserState) {
             case 'init':
-                var formatted = emboldenPrefix(line);
+                formatted = emboldenPrefix(line);
                 formattedLines.push(formatted);
                 if (formatted.startsWith('**DESCRIPTION')) {
                     parserState = 'description-body';
@@ -198,7 +203,7 @@ function formatResource(lines) {
                 }
                 break;
             case 'description-body':
-                var formatted = emboldenPrefix(line);
+                formatted = emboldenPrefix(line);
                 formatted = removeLeading(formatted);
                 formattedLines.push(formatted);
                 if (formatted.startsWith('**FIELD')) {
@@ -207,7 +212,7 @@ function formatResource(lines) {
                 }
                 break;
             case 'fields-none':
-                var formatted = removeLeading(line);
+                formatted = removeLeading(line);
                 formatted = emboldenFieldName(formatted);
                 formattedLines.push(formatted);
                 if (formatted.startsWith('**')) {
@@ -215,21 +220,21 @@ function formatResource(lines) {
                 }
                 break;
             case 'field-first':
-                if (line.length == 0) {
+                if (line.length === 0) {
                     break;
                 }
-                var formatted = removeLeading(line);
+                formatted = removeLeading(line);
                 formattedLines.push("");
                 formattedLines.push(formatted);
                 parserState = 'field-rest';
                 break;
             case 'field-rest':
-                if (line.length == 0) {
+                if (line.length === 0) {
                     parserState = 'fields-none';
                     formattedLines.push(line);
                     break;
                 }
-                var formatted = removeLeading(line);
+                formatted = removeLeading(line);
                 formattedLines.push(formatted);
                 break;
         }
@@ -255,11 +260,11 @@ function emboldenFieldName(line) {
     if (!line) {
         return line;
     }
-    var parse = line.match(/^(\w+)\s+\<(\[\])?\w+\>(\s+-required-)?$/);
+    var parse = line.match(/^(\w+)\s+<(\[\])?\w+>(\s+-required-)?$/);
     if (parse) {
-        line = '**' + parse[1] + '**' + line.substring(parse[1].length)
+        line = '**' + parse[1] + '**' + line.substring(parse[1].length);
         if (parse[3]) {
-            line = line.replace('-required-', '**[required]**')
+            line = line.replace('-required-', '**[required]**');
         }
     }
     return line;
@@ -269,9 +274,9 @@ function removeLeading(line) {
     if (!line) {
         return line;
     }
-    return line.replace(/^\s+/, '')
+    return line.replace(/^\s+/, '');
 }
 
 module.exports = {
     formatExplain: formatExplain
-}
+};
