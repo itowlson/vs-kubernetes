@@ -40,9 +40,13 @@ function activate(context) {
     context.subscriptions.push(disposable);
 
     disposable = vscode.commands.registerCommand('extension.vsKubernetesDelete', function () {
-        findKindNameOrPrompt('delete', function (kindName) {
+        findKindNameOrPrompt('delete', { nameOptional: true }, function (kindName) {
             if (kindName) {
-                kubectl('delete ' + kindName);
+                var commandArgs = kindName;
+                if (!containsName(kindName)) {
+                    commandArgs = kindName + " --all";
+                }
+                kubectl('delete ' + commandArgs);
             }
         });
     });
@@ -412,9 +416,7 @@ function getTextForActiveWindow(callback) {
 }
 
 function loadKubernetes() {
-    vscode.window.showInputBox({
-        prompt: "What resource do you want to load?",
-    }).then(function (value) {
+    promptKindName("load", { nameOptional: true }, function (value) {
         kubectlInternal(" -o json get " + value, function (result, stdout, stderr) {
             if (result !== 0) {
                 vscode.window.showErrorMessage("Get command failed: " + stderr);
@@ -498,7 +500,7 @@ function getKubernetes() {
         maybeRunKubernetesCommandForActiveWindow('get --no-headers -o wide -f ');
         return;
     }
-    findKindNameOrPrompt('get', function(value) {
+    findKindNameOrPrompt('get', { nameOptional : true }, function(value) {
         kubectl(" get " + value + " -o wide --no-headers");
     });
 }
@@ -629,7 +631,7 @@ function findKindName() {
 function findKindNameForText(text) {
     try {
         var obj = yaml.safeLoad(text);
-        if (!obj.kind) {
+        if (!obj || !obj.kind) {
             return null;
         }
         if (!obj.metadata || !obj.metadata.name) {
@@ -642,34 +644,53 @@ function findKindNameForText(text) {
     }
 }
 
-function findKindNameOrPrompt(descriptionVerb, handler) {
+function findKindNameOrPrompt(descriptionVerb, opts, handler) {
     var kindName = findKindName();
     if (kindName === null) {
-        vscode.window.showInputBox({ prompt: "What resource do you want to " + descriptionVerb + "?", placeHolder: 'Empty string to be prompted' }).then(function (resource) {
-            if (resource === '') {
-                quickPickKindName(handler);
-            } else {
-                handler(resource);
-            }
-        });
+        promptKindName(descriptionVerb, opts, handler);
     } else {
         handler(kindName);
     }
 }
 
-function quickPickKindName(handler) {
-    vscode.window.showQuickPick(['deployment', 'pod', 'service']).then(function (kind) {
+function promptKindName(descriptionVerb, opts, handler) {
+    vscode.window.showInputBox({ prompt: "What resource do you want to " + descriptionVerb + "?", placeHolder: 'Empty string to be prompted' }).then(function (resource) {
+        if (resource === '') {
+            quickPickKindName(opts, handler);
+        } else {
+            handler(resource);
+        }
+    });
+}
+
+function quickPickKindName(opts, handler) {
+    vscode.window.showQuickPick(['deployment', 'job', 'pod', 'service']).then(function (kind) {
         if (kind) {
             kubectlInternal("get " + kind, function(code, stdout, stderr) {
                 if (code === 0) {
                     var names = parseNamesFromKubectlLines(stdout);
                     if (names.length > 0) {
-                        vscode.window.showQuickPick(names).then(function (name) {
-                            if (name) {
-                                var kindName = kind + '/' + name;
-                                handler(kindName);
-                            }
-                        });
+                        if (opts && opts.nameOptional) {
+                            names.push('(all)');
+                            vscode.window.showQuickPick(names).then(function (name) {
+                                if (name) {
+                                    var kindName;
+                                    if (name == '(all)') {
+                                        kindName = kind;
+                                    } else {
+                                        kindName = kind + '/' + name;
+                                    }
+                                    handler(kindName);
+                                }
+                            });
+                        } else {
+                            vscode.window.showQuickPick(names).then(function (name) {
+                                if (name) {
+                                    var kindName = kind + '/' + name;
+                                    handler(kindName);
+                                }
+                            });
+                        }
                     } else {
                         vscode.window.showInformationMessage("No resources of type " + kind + " in cluster");
                     }
@@ -681,10 +702,18 @@ function quickPickKindName(handler) {
     });
 }
 
+function containsName(kindName) {
+    if (typeof kindName === 'string' || kindName instanceof String) {
+        return kindName.indexOf('/') > 0;
+    }
+    return false;
+}
+
 function parseNamesFromKubectlLines(text) {
     var lines = text.split('\n');
     lines.shift();
-    var names = lines.map(function (line) { return parseName(line); });
+    var names = lines.filter(function (line) { return line.length > 0; })
+                     .map(function (line) { return parseName(line); });
     return names;
 }
 
@@ -806,7 +835,7 @@ function getPorts() {
 }
 
 function describeKubernetes() {
-    findKindNameOrPrompt('describe', function (value) {
+    findKindNameOrPrompt('describe', { nameOptional: true }, function (value) {
         var fn = curry(kubectlOutput, value + "-describe");
         kubectlInternal(' describe ' + value, fn);
     });
