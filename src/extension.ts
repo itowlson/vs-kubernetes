@@ -2,29 +2,29 @@
 
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
-const vscode = require('vscode');
+import * as vscode from 'vscode';
 
 // Standard node imports
-const os = require('os');
-const path = require('path');
-const fs = require('fs');
+import * as os from 'os';
+import * as path from 'path';
+import * as fs from 'fs';
 
 // External dependencies
-const yaml = require('js-yaml');
-const dockerfileParse = require('dockerfile-parse');
-const shell = require('shelljs');
+import * as yaml from 'js-yaml';
+import * as shell from 'shelljs';
+import * as dockerfileParse from 'dockerfile-parse';
 
+// Internal dependencies
+import formatExplain from './explainer';
 
 const WINDOWS = 'win32';
-// Internal dependencies
-var explainer = require('./explainer');
 
 let explainActive = false;
 let kubectlFound = false;
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
-function activate(context) {
+export function activate(context) {
     checkForKubectl('activation', function () { });
 
     const subscriptions = [
@@ -60,6 +60,9 @@ function activate(context) {
         context.subscriptions.push(element);
     }, this);
 }
+
+// this method is called when your extension is deactivated
+export const deactivate = () => { };
 
 function checkForKubectl(errorMessageMode, handler) {
     if (kubectlFound) {
@@ -107,41 +110,41 @@ function getCheckKubectlContextMessage(errorMessageMode) {
 }
 
 function providerHover(document, position, token, syntax) {
-    if (!explainActive) {
-        return null;
-    }
-    var body = document.getText();
-    var obj = {};
-    try {
-        obj = syntax.parse(body);
-    } catch (err) {
-        // Bad document
-        return null;
-    }
-    // Not a k8s object.
-    if (!obj.kind) {
-        return null;
-    }
-    var property = findProperty(document.lineAt(position.line));
-    var field = syntax.parse(property);
-
-    var parentLine = syntax.findParent(document, position.line);
-    while (parentLine !== -1) {
-        var parentProperty = findProperty(document.lineAt(parentLine));
-        field = syntax.parse(parentProperty) + '.' + field;
-        parentLine = syntax.findParent(document, parentLine);
-    }
-
-    if (field === 'kind') {
-        field = '';
-    }
-    return {
-        'then': function (fn) {
-            explain(obj, field, function (msg) {
-                fn(new vscode.Hover(explainer.formatExplain(msg)));
-            });
+    return new Promise((resolve) => {
+        if (!explainActive) {
+            resolve(null);
         }
-    };
+        var body = document.getText();
+        var obj: any = {};
+        try {
+            obj = syntax.parse(body);
+        } catch (err) {
+            // Bad document
+            resolve(null);
+        }
+        // Not a k8s object.
+        if (!obj.kind) {
+            resolve(null);
+        }
+        var property = findProperty(document.lineAt(position.line));
+        var field = syntax.parse(property);
+
+        var parentLine = syntax.findParent(document, position.line);
+        while (parentLine !== -1) {
+            var parentProperty = findProperty(document.lineAt(parentLine));
+            field = syntax.parse(parentProperty) + '.' + field;
+            parentLine = syntax.findParent(document, parentLine);
+        }
+
+        if (field === 'kind') {
+            field = '';
+        }
+
+        explain(obj, field).then(
+            (msg) => resolve(new vscode.Hover(formatExplain(msg)))
+        );
+    });
+
 }
 
 function provideHoverJson(document, position, token) {
@@ -220,32 +223,38 @@ function isYamlIndentChar(ch) {
     return ch === ' ' || ch === '-';
 }
 
-function explain(obj, field, fn) {
-    if (!obj.kind) {
-        vscode.window.showErrorMessage("Not a Kubernetes API Object!");
-        return;
-    }
-    var ref = obj.kind;
-    if (field && field.length > 0) {
-        ref = ref + "." + field;
-    }
-    kubectlInternal(` explain ${ref}`, function (result, stdout, stderr) {
-        if (result !== 0) {
-            vscode.window.showErrorMessage("Failed to run explain: " + stderr);
-            return;
+function explain(obj, field) {
+    return new Promise(resolve => {
+        if (!obj.kind) {
+            vscode.window.showErrorMessage("Not a Kubernetes API Object!");
+            resolve(null);
         }
-        fn(stdout);
+
+        var ref = obj.kind;
+        if (field && field.length > 0) {
+            ref = ref + "." + field;
+        }
+
+        kubectlInternal(` explain ${ref}`, function (result, stdout, stderr) {
+            if (result !== 0) {
+                vscode.window.showErrorMessage("Failed to run explain: " + stderr);
+                return;
+            }
+            resolve(stdout);
+        });
     });
 }
 
 function explainActiveWindow() {
     var editor = vscode.window.activeTextEditor;
-    var bar = initStatusBar(editor);
+    var bar = initStatusBar();
+
     if (!editor) {
         vscode.window.showErrorMessage("No active editor!");
         bar.hide();
         return; // No open text editor
     }
+
     explainActive = !explainActive;
     if (explainActive) {
         vscode.window.showInformationMessage("Kubernetes API explain activated.");
@@ -466,7 +475,7 @@ function getKubernetes() {
         maybeRunKubernetesCommandForActiveWindow('get --no-headers -o wide -f ');
         return;
     }
-    findKindNameOrPrompt('get', { nameOptional : true }, function(value) {
+    findKindNameOrPrompt('get', { nameOptional: true }, function (value) {
         kubectl(" get " + value + " -o wide --no-headers");
     });
 }
@@ -625,7 +634,7 @@ function promptKindName(descriptionVerb, opts, handler) {
 function quickPickKindName(opts, handler) {
     vscode.window.showQuickPick(['deployment', 'job', 'pod', 'service']).then(function (kind) {
         if (kind) {
-            kubectlInternal("get " + kind, function(code, stdout, stderr) {
+            kubectlInternal("get " + kind, function (code, stdout, stderr) {
                 if (code === 0) {
                     var names = parseNamesFromKubectlLines(stdout);
                     if (names.length > 0) {
@@ -661,14 +670,21 @@ function quickPickKindName(opts, handler) {
     });
 }
 
+function containsName(kindName) {
+    if (typeof kindName === 'string' || kindName instanceof String) {
+        return kindName.indexOf('/') > 0;
+    }
+    return false;
+}
+
 function parseNamesFromKubectlLines(text) {
     var lines = text.split('\n');
     lines.shift();
 
     var names = lines.filter((line) => {
-         return line.length > 0;
+        return line.length > 0;
     }).map((line) => {
-         return parseName(line);
+        return parseName(line);
     });
 
     return names;
@@ -821,7 +837,8 @@ function selectContainerForPod(pod, callback) {
 }
 
 function execKubernetes(isTerminal) {
-    var opts = { 'prompt': 'Please provide a command to execute' };
+    var opts: any = { 'prompt': 'Please provide a command to execute' };
+
     if (isTerminal) {
         opts.value = 'bash';
     }
@@ -836,6 +853,7 @@ function execKubernetes(isTerminal) {
             if (!pod || !pod.metadata) {
                 return;
             }
+
             if (isTerminal) {
                 const terminalExecCmd = ['exec', '-it', pod.metadata.name, cmd];
                 var term = vscode.window.createTerminal('exec', 'kubectl', terminalExecCmd);
@@ -854,7 +872,7 @@ function syncKubernetes() {
         selectContainerForPod(pod, function (container) {
             var pieces = container.image.split(':');
             if (pieces.length !== 2) {
-                vscode.windows.showErrorMessage(`unexpected image name: ${container.image}`);
+                vscode.window.showErrorMessage(`unexpected image name: ${container.image}`);
                 return;
             }
             var opts = shellExecOpts();
@@ -896,8 +914,14 @@ function findBinary(binName, callback) {
 }
 
 const deleteKubernetes = function () {
-    findKindNameOrPrompt().then(function (kindName) {
-        kubectl(`delete ${kindName}`);
+    findKindNameOrPrompt('delete', { nameOptional: true }, function (kindName) {
+        if (kindName) {
+            var commandArgs = kindName;
+            if (!containsName(kindName)) {
+                commandArgs = kindName + " --all";
+            }
+            kubectl('delete ' + commandArgs);
+        }
     });
 }
 
@@ -1086,10 +1110,3 @@ function removeDebugKubernetes() {
         });
     });
 }
-
-exports.activate = activate;
-
-// this method is called when your extension is deactivated
-function deactivate() { }
-
-exports.deactivate = deactivate;

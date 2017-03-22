@@ -1,6 +1,6 @@
 'use strict';
 
-function formatExplain(rawText) {
+export default function formatExplain(rawText) {
     if (!rawText) {
         return rawText;
     }
@@ -273,8 +273,4 @@ function removeLeading(line) {
         return line;
     }
     return line.replace(/^\s+/, '')
-}
-
-module.exports = {
-    formatExplain: formatExplain
 }
