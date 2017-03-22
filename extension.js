@@ -40,32 +40,8 @@ function activate(context) {
     context.subscriptions.push(disposable);
 
     disposable = vscode.commands.registerCommand('extension.vsKubernetesDelete', function () {
-        findKindNameOrPrompt().then(function (kindName) {
-            if (kindName === '') {
-                vscode.window.showQuickPick(['deployment', 'pod', 'service']).then(function (kind) {
-                    if (kind) {
-                        kubectlInternal("get " + kind, function(code, stdout, stderr) {
-                            if (code == 0) {
-                                var lines = stdout.split('\n');
-                                lines.shift();
-                                if (lines.length > 0) {
-                                    var names = lines.map(function (line) { return parseName(line); });
-                                    vscode.window.showQuickPick(names).then(function (name) {
-                                        if (name) {
-                                            kindName = kind + '/' + name;
-                                            kubectl('delete ' + kindName);  // TOOO: deduplicate!  All this guff around quick picks should be folded in with fKNOP into a single async method
-                                        }
-                                    });
-                                } else {
-                                    vscode.window.showInformationMessage("No resources of type " + choice + " in cluster");
-                                }
-                            } else {
-                                vscode.window.showErrorMessage(stderr);
-                            }
-                        });
-                    }
-                });
-            } else if (kindName) {
+        findKindNameOrPrompt(function (kindName) {
+            if (kindName) {
                 kubectl('delete ' + kindName);
             }
         });
@@ -668,16 +644,50 @@ function findKindNameForText(text) {
     }
 }
 
-function findKindNameOrPrompt() {
+function findKindNameOrPrompt(handler) {
     var kindName = findKindName();
-    if (kindName !== null) {
-        return {
-            'then': function (fn) {
-                fn(kindName);
+    if (kindName === null) {
+        vscode.window.showInputBox({ prompt: "What resource do you want to load?", placeHolder: 'Empty string to be prompted' }).then(function (resource) {
+            if (resource === '') {
+                quickPickKindName(handler);
+            } else {
+                handler(resource);
             }
-        };
+        });
+    } else {
+        handler(kindName);
     }
-    return vscode.window.showInputBox({ prompt: "What resource do you want to load?", placeHolder: 'Empty string to be prompted' });
+}
+
+function quickPickKindName(handler) {
+    vscode.window.showQuickPick(['deployment', 'pod', 'service']).then(function (kind) {
+        if (kind) {
+            kubectlInternal("get " + kind, function(code, stdout, stderr) {
+                if (code === 0) {
+                    var names = parseNamesFromKubectlLines(stdout);
+                    if (names.length > 0) {
+                        vscode.window.showQuickPick(names).then(function (name) {
+                            if (name) {
+                                var kindName = kind + '/' + name;
+                                handler(kindName);
+                            }
+                        });
+                    } else {
+                        vscode.window.showInformationMessage("No resources of type " + kind + " in cluster");
+                    }
+                } else {
+                    vscode.window.showErrorMessage(stderr);
+                }
+            });
+        }
+    });
+}
+
+function parseNamesFromKubectlLines(text) {
+    var lines = text.split('\n');
+    lines.shift();
+    var names = lines.map(function (line) { return parseName(line); });
+    return names;
 }
 
 function parseName(line) {
@@ -798,7 +808,7 @@ function getPorts() {
 }
 
 function describeKubernetes() {
-    findKindNameOrPrompt().then(function (value) {
+    findKindNameOrPrompt(function (value) {
         var fn = curry(kubectlOutput, value + "-describe");
         kubectlInternal(' describe ' + value, fn);
     });
