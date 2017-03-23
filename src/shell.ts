@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import * as shelljs from 'shelljs';
 
 export function isWindows() : boolean {
-    return (process.platform == 'win32');
+    return (process.platform === 'win32');
 }
 
 export function isUnix() : boolean {
@@ -12,12 +12,12 @@ export function isUnix() : boolean {
 }
 
 export function home() {
-    var homeVar = isWindows() ? 'USERPROFILE' : 'HOME';
+    const homeVar = isWindows() ? 'USERPROFILE' : 'HOME';
     return process.env[homeVar];
 }
 
 export function combinePath(basePath, relativePath : string) {
-    var separator = '/';
+    let separator = '/';
     if (isWindows()) {
         relativePath = relativePath.replace(/\//g, '\\');
         separator = '\\';
@@ -26,14 +26,14 @@ export function combinePath(basePath, relativePath : string) {
 }
 
 export function execOpts() {
-    var env = process.env;
+    let env = process.env;
     if (isWindows()) {
-        env = Object.assign({ }, env, { 'HOME': home() });
+        env = Object.assign({ }, env, { HOME: home() });
     }
-    var opts = {
-        'cwd': vscode.workspace.rootPath,
-        'env': env,
-        'async': true
+    const opts = {
+        cwd: vscode.workspace.rootPath,
+        env: env,
+        async: true
     };
     return opts;
 }
