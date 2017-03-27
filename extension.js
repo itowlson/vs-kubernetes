@@ -478,16 +478,21 @@ function kubectlInternal(command, handler) {
     });
 }
 
+function shellExecOpts() {
+    var home = process.env[(process.platform == 'win32') ? 'USERPROFILE' : 'HOME'];
+    var opts = {
+        'cwd': vscode.workspace.rootPath,
+        'env': {
+            'HOME': home
+        },
+        'async': true
+    };
+    return opts;
+}
+
 function shellExec(cmd, handler) {
     try {
-        var home = process.env[(process.platform == 'win32') ? 'USERPROFILE' : 'HOME'];
-        var opts = {
-            'cwd': vscode.workspace.rootPath,
-            'env': {
-                'HOME': home
-            },
-            'async': true
-        };
+        var opts = shellExecOpts();
         shell().exec(cmd, opts, handler);
     } catch (ex) {
         vscode.window.showErrorMessage(ex);
@@ -519,14 +524,7 @@ function findVersionInternal(fn) {
         return;
     }
 
-    var home = process.env[(process.platform == 'win32') ? 'USERPROFILE' : 'HOME'];
-    var opts = {
-        'cwd': vscode.workspace.rootPath,
-        'env': {
-            'HOME': home
-        },
-        'async': true,
-    };
+    var opts = shellExecOpts();
     shell().exec('git describe --always --dirty', opts, function (code, stdout, stderr) {
         if (code !== 0) {
             vscode.window.showErrorMessage('git log returned: ' + code);
@@ -901,14 +899,7 @@ function syncKubernetes() {
                 vscode.windows.showErrorMessage('unexpected image name: ' + container.image);
                 return;
             }
-            var home = process.env[(process.platform == 'win32') ? 'USERPROFILE' : 'HOME'];
-            var opts = {
-                'cwd': vscode.workspace.rootPath,
-                'env': {
-                    'HOME': home
-                },
-                'async': true,
-            };
+            var opts = shellExecOpts();
             var cmd = 'git checkout ' + pieces[1];
             shell().exec(cmd, opts, function (code, stdout, stderr) {
                 if (code !== 0) {
