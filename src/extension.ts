@@ -855,7 +855,7 @@ function execKubernetes(isTerminal) {
             }
 
             if (isTerminal) {
-                const terminalExecCmd = ['exec', '-it', pod.metadata.name, cmd];
+                const terminalExecCmd : string[] = ['exec', '-it', pod.metadata.name, cmd];
                 var term = vscode.window.createTerminal('exec', 'kubectl', terminalExecCmd);
                 term.show();
             } else {
