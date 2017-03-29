@@ -41,8 +41,8 @@ export function activate(context) {
         vscode.commands.registerCommand('extension.vsKubernetesExpose', exposeKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesDescribe', describeKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesSync', syncKubernetes),
-        vscode.commands.registerCommand('extension.vsKubernetesExec', curry(execKubernetes, false)),
-        vscode.commands.registerCommand('extension.vsKubernetesTerminal', curry(execKubernetes, true)),
+        vscode.commands.registerCommand('extension.vsKubernetesExec', execKubernetes),
+        vscode.commands.registerCommand('extension.vsKubernetesTerminal', terminalKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesDiff', diffKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesDebug', debugKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesRemoveDebug', removeDebugKubernetes),
@@ -439,13 +439,26 @@ function kubectl(command) {
 
 function kubectlInternal(command, handler) {
     checkForKubectl('command', function () {
-        var bin = vscode.workspace.getConfiguration('vs-kubernetes')['vs-kubernetes.kubectl-path'];
-        if (!bin) {
-            bin = 'kubectl'
-        }
+        var bin = baseKubectlPath();
         var cmd = bin + ' ' + command
         shellExec(cmd, handler);
     });
+}
+
+function baseKubectlPath() {
+    var bin = vscode.workspace.getConfiguration('vs-kubernetes')['vs-kubernetes.kubectl-path'];
+    if (!bin) {
+        bin = 'kubectl';
+    }
+    return bin;
+}
+
+function kubectlPath() {
+    var bin = baseKubectlPath();
+    if (process.platform == 'win32' && !(bin.endsWith('.exe'))) {
+        bin = bin + '.exe';
+    }
+    return bin;
 }
 
 function shellExecOpts() {
@@ -836,7 +849,15 @@ function selectContainerForPod(pod, callback) {
     });
 }
 
-function execKubernetes(isTerminal) {
+function execKubernetes() {
+    execKubernetesCore(false);
+}
+
+function terminalKubernetes() {
+    execKubernetesCore(true);
+}
+
+function execKubernetesCore(isTerminal) {
     var opts: any = { 'prompt': 'Please provide a command to execute' };
 
     if (isTerminal) {
@@ -856,7 +877,7 @@ function execKubernetes(isTerminal) {
 
             if (isTerminal) {
                 const terminalExecCmd : string[] = ['exec', '-it', pod.metadata.name, cmd];
-                var term = vscode.window.createTerminal('exec', 'kubectl', terminalExecCmd);
+                var term = vscode.window.createTerminal('exec', kubectlPath(), terminalExecCmd);
                 term.show();
             } else {
                 const execCmd = ' exec ' + pod.metadata.name + ' ' + cmd;
