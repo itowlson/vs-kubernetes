@@ -46,6 +46,7 @@ export function activate(context) {
         vscode.commands.registerCommand('extension.vsKubernetesDiff', diffKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesDebug', debugKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesRemoveDebug', removeDebugKubernetes),
+        vscode.commands.registerCommand('extension.vsKubernetesConfigureFromAcs', configureFromAcsKubernetes),
         vscode.languages.registerHoverProvider(
             { language: 'json', scheme: 'file' },
             { provideHover: provideHoverJson }
@@ -1130,4 +1131,23 @@ function removeDebugKubernetes() {
             })
         });
     });
+}
+
+function configureFromAcsKubernetes() {
+    // prereq: az login
+    //   -- how and when can we detect if not logged in - think account set fails but not account list?
+    // prereq: az account set --subscription "blah"
+    //   -- can find current account via az account show, or prompt via az account list
+    //      { name: <n> }
+    // az acs list
+    //   [
+    //     { orchestratorProfile :
+    //       { orchestratorType : "Kubernetes" }
+    //     },
+    //     name: <capture>
+    //     resourceGroup: <capture>,
+    // ]
+    // az acs kubernetes install-cli (opt: --install-location)
+    // az acs kubernetes get-credentials -n cluster_name -g resource_group
+    vscode.window.showInformationMessage('Not implemented');
 }
