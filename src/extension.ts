@@ -1116,27 +1116,43 @@ function configureFromAcsKubernetes() {
     //   -- how and when can we detect if not logged in - think account set fails but not account list?
     acs.selectSubscription(
         subName => {
-            acs.selectKubernetesClustersFromActiveSubscription(
-                cluster => {
-                    vscode.window.showInformationMessage('Selected ' + cluster.name + ' in ' + cluster.resourceGroup + ' but command is not implemented');
-                },
-                () => {
-                    vscode.window.showInformationMessage('No Kubernetes clusters in subscription ' + subName);
-                },
-                err => {
-                    vscode.window.showErrorMessage('Unable to select a Kubernetes cluster in ' + subName + '. See Output window for error.');
-                    showOutput(err, 'Kubernetes Configure from ACS');
-                }
-            );
+            acsSelectCluster(subName);
         },
         () => {
             vscode.window.showInformationMessage('No Azure subscriptions.');
         },
         err => {
-            vscode.window.showErrorMessage('Unable to list Azure subscriptions. See Output window for error.');
-            showOutput(err, 'Kubernetes Configure from ACS');
+            acsShowError('Unable to list Azure subscriptions. See Output window for error.', err);
         }
     );
-    // az acs kubernetes install-cli (opt: --install-location)
-    // az acs kubernetes get-credentials -n cluster_name -g resource_group
 }
+
+function acsSelectCluster(subName) {
+    acs.selectKubernetesClustersFromActiveSubscription(
+        cluster => {
+            acsInstallCli();
+            acsGetCredentials(cluster);
+        },
+        () => {
+            vscode.window.showInformationMessage('No Kubernetes clusters in subscription ' + subName);
+        },
+        err => {
+            acsShowError('Unable to select a Kubernetes cluster in ' + subName + '. See Output window for error.', err);
+         }
+     );
+}
+
+function acsInstallCli() {
+    // az acs kubernetes install-cli (opt: --install-location)
+}
+
+function acsGetCredentials(cluster) {
+    // az acs kubernetes get-credentials -n cluster_name -g resource_group
+    vscode.window.showWarningMessage('Getting credentials for ' + cluster.name + ' in ' + cluster.resourceGroup + ' - not implemented');
+}
+
+function acsShowError(message, err) {
+    vscode.window.showErrorMessage(message);
+    showOutput(err, 'Kubernetes Configure from ACS');
+}
+
