@@ -1116,7 +1116,18 @@ function configureFromAcsKubernetes() {
     //   -- how and when can we detect if not logged in - think account set fails but not account list?
     acs.selectSubscription(
         subName => {
-            vscode.window.showInformationMessage('Selected ' + subName + ' but command is not implemented');
+            acs.selectKubernetesClustersFromActiveSubscription(
+                cluster => {
+                    vscode.window.showInformationMessage('Selected ' + cluster.name + ' in ' + cluster.resourceGroup + ' but command is not implemented');
+                },
+                () => {
+                    vscode.window.showInformationMessage('No Kubernetes clusters in subscription ' + subName);
+                },
+                err => {
+                    vscode.window.showErrorMessage('Unable to select a Kubernetes cluster in ' + subName + '. See Output window for error.');
+                    showOutput(err, 'Kubernetes Configure from ACS');
+                }
+            );
         },
         () => {
             vscode.window.showInformationMessage('No Azure subscriptions.');
@@ -1126,14 +1137,6 @@ function configureFromAcsKubernetes() {
             showOutput(err, 'Kubernetes Configure from ACS');
         }
     );
-    // az acs list
-    //   [
-    //     { orchestratorProfile :
-    //       { orchestratorType : "Kubernetes" }
-    //     },
-    //     name: <capture>
-    //     resourceGroup: <capture>,
-    // ]
     // az acs kubernetes install-cli (opt: --install-location)
     // az acs kubernetes get-credentials -n cluster_name -g resource_group
 }

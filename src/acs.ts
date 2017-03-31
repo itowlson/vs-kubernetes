@@ -44,3 +44,51 @@ export function selectSubscription(onSelection, onNone, onError) {
 
     });
 }
+
+export function selectKubernetesClustersFromActiveSubscription(onSelection, onNone, onError) {
+    shell.exec("az acs list --query [?orchestratorProfile.orchestratorType==`Kubernetes`].{name:name,resourceGroup:resourceGroup}", function(code, stdout, stderr) {
+        if (code === 0 && !stderr) {
+            var clusters : Cluster[] = JSON.parse(stdout);
+            switch (clusters.length) {
+                case 0:
+                    onNone();
+                    break;
+                case 1:
+                    vscode.window.showInformationMessage('This will configure Kubernetes to use cluster ' + clusters[0].name, "OK").then(choice =>
+                    {
+                        if (choice == 'OK') {
+                            onSelection(choice);
+                        }
+                    });
+                    break;
+                default:
+                    let items = clusters.map(c => clusterQuickPick(c));
+                    vscode.window.showQuickPick(items, { placeHolder: "Select Kubernetes cluster"}).then(item =>
+                    {
+                        if (item) {
+                            onSelection(item.cluster);
+                        }
+                    });
+            }
+        } else {
+            onError(stderr);
+        }
+    });
+}
+
+function clusterQuickPick(cluster) : ClusterQuickPick {
+    return new ClusterQuickPick(cluster);
+}
+
+interface Cluster {
+    readonly name : string;
+    readonly resourceGroup : string;
+}
+
+class ClusterQuickPick implements vscode.QuickPickItem {
+    constructor (readonly cluster: Cluster) {
+    }
+
+    get label() { return this.cluster.name; }
+    get description() { return 'Resource group ' + this.cluster.resourceGroup; }
+}
