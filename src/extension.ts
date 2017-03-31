@@ -1114,6 +1114,7 @@ function removeDebugKubernetes() {
 function configureFromAcsKubernetes() {
     // prereq: az login
     //   -- how and when can we detect if not logged in - think account set fails but not account list?
+    acsShowProgress("Retrieving Azure subscriptions...");
     acs.selectSubscription(
         subName => {
             acsSelectCluster(subName);
@@ -1128,6 +1129,7 @@ function configureFromAcsKubernetes() {
 }
 
 function acsSelectCluster(subName) {
+    acsShowProgress("Retrieving Azure Container Service Kubernetes clusters...");
     acs.selectKubernetesClustersFromActiveSubscription(
         cluster => {
             acsInstallCli();
@@ -1149,6 +1151,10 @@ function acsInstallCli() {
 function acsGetCredentials(cluster) {
     // az acs kubernetes get-credentials -n cluster_name -g resource_group
     vscode.window.showWarningMessage('Getting credentials for ' + cluster.name + ' in ' + cluster.resourceGroup + ' - not implemented');
+}
+
+function acsShowProgress(message) {
+    showOutput(message, 'Kubernetes Configure from ACS');
 }
 
 function acsShowError(message, err) {
