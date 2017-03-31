@@ -11,11 +11,12 @@ import * as fs from 'fs';
 
 // External dependencies
 import * as yaml from 'js-yaml';
-import * as shell from 'shelljs';
 import * as dockerfileParse from 'dockerfile-parse';
 
 // Internal dependencies
 import formatExplain from './explainer';
+import * as shell from './shell';
+import * as acs from './acs';
 
 const WINDOWS = 'win32';
 
@@ -442,7 +443,7 @@ function kubectlInternal(command, handler) {
     checkForKubectl('command', function () {
         var bin = baseKubectlPath();
         var cmd = bin + ' ' + command
-        shellExec(cmd, handler);
+        shell.exec(cmd, handler);
     });
 }
 
@@ -460,27 +461,6 @@ function kubectlPath() {
         bin = bin + '.exe';
     }
     return bin;
-}
-
-function shellExecOpts() {
-    var home = process.env[(process.platform === WINDOWS) ? 'USERPROFILE' : 'HOME'];
-    var opts = {
-        'cwd': vscode.workspace.rootPath,
-        'env': {
-            'HOME': home
-        },
-        'async': true
-    };
-    return opts;
-}
-
-function shellExec(cmd, handler) {
-    try {
-        var opts = shellExecOpts();
-        shell.exec(cmd, opts, handler);
-    } catch (ex) {
-        vscode.window.showErrorMessage(ex);
-    }
 }
 
 function getKubernetes() {
@@ -508,8 +488,7 @@ function findVersionInternal(fn) {
         return;
     }
 
-    var opts = shellExecOpts();
-    shell.exec('git describe --always --dirty', opts, function (code, stdout, stderr) {
+    shell.execCore('git describe --always --dirty', shell.execOpts(), function (code, stdout, stderr) {
         if (code !== 0) {
             vscode.window.showErrorMessage('git log returned: ' + code);
             console.log(stderr);
@@ -578,10 +557,10 @@ function runKubernetes() {
 
 function buildPushThenExec(fn) {
     findNameAndImage().then(function (name, image) {
-        shellExec(`docker build -t ${image} .`, function (result, stdout, stderr) {
+        shell.exec(`docker build -t ${image} .`, function (result, stdout, stderr) {
             if (result === 0) {
                 vscode.window.showInformationMessage(image + ' built.');
-                shellExec('docker push ' + image, function (result, stdout, stderr) {
+                shell.exec('docker push ' + image, function (result, stdout, stderr) {
                     if (result === 0) {
                         vscode.window.showInformationMessage(image + ' pushed.');
                         fn(name, image);
@@ -897,11 +876,10 @@ function syncKubernetes() {
                 vscode.window.showErrorMessage(`unexpected image name: ${container.image}`);
                 return;
             }
-            var opts = shellExecOpts();
             var cmd = `git checkout ${pieces[1]}`;
 
             //eslint-disable-next-line no-unused-vars
-            shell.exec(cmd, opts, function (code, stdout, stderr) {
+            shell.execCore(cmd, shell.execOpts(), function (code, stdout, stderr) {
                 if (code !== 0) {
                     vscode.window.showErrorMessage(`git checkout returned: ${code}`);
                     return 'error';
@@ -926,7 +904,7 @@ function findBinary(binName, callback) {
         }
     }
 
-    shell.exec(cmd, opts, function (code, stdout, stderr) {
+    shell.execCore(cmd, opts, function (code, stdout, stderr) {
         if (code) {
             callback(code, stderr);
         } else {
@@ -1136,9 +1114,18 @@ function removeDebugKubernetes() {
 function configureFromAcsKubernetes() {
     // prereq: az login
     //   -- how and when can we detect if not logged in - think account set fails but not account list?
-    // prereq: az account set --subscription "blah"
-    //   -- can find current account via az account show, or prompt via az account list
-    //      { name: <n> }
+    acs.selectSubscription(
+        subName => {
+            vscode.window.showInformationMessage('Selected ' + subName + ' but command is not implemented');
+        },
+        () => {
+            vscode.window.showInformationMessage('No Azure subscriptions.');
+        },
+        err => {
+            vscode.window.showErrorMessage('Unable to list Azure subscriptions. See Output window for error.');
+            showOutput(err, 'Kubernetes Configure from ACS');
+        }
+    );
     // az acs list
     //   [
     //     { orchestratorProfile :
@@ -1149,5 +1136,4 @@ function configureFromAcsKubernetes() {
     // ]
     // az acs kubernetes install-cli (opt: --install-location)
     // az acs kubernetes get-credentials -n cluster_name -g resource_group
-    vscode.window.showInformationMessage('Not implemented');
 }
