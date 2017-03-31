@@ -76,6 +76,38 @@ export function selectKubernetesClustersFromActiveSubscription(onSelection, onNo
     });
 }
 
+export function installCli(onInstall, onError) {
+    var installDir, installFile;
+    var cmd;
+    var cmdCore = 'az acs kubernetes install-cli';
+    var isWindows = (process.platform == 'win32');
+    if (isWindows) {
+        // The default Windows install location requires admin permissions; install
+        // into a user profile directory instead. We process the path explicitly
+        // instead of using %LOCALAPPDATA% in the command, so that we can render the
+        // physical path when notifying the user.
+        var appDataDir = process.env['LOCALAPPDATA'];
+        installDir = appDataDir + '\\kubectl';
+        installFile = installDir + '\\kubectl.exe';
+        cmd = 'md "' + installDir + '" && ' + cmdCore + ' --install-location="' + installFile + '"';
+    } else {
+        // Bah, the default Linux install location requires admin permissions too!
+        // Fortunately, $HOME/bin is on the path albeit not created by default.
+        var homeDir = process.env['HOME'];
+        installDir = homeDir + '/bin';
+        installFile = installDir + '/kubectl';
+        cmd = 'mkdir "' + installDir + '" && ' + cmdCore + ' --install-location="' + installFile + '"';
+    }
+    shell.exec(cmd, function(code, stdout, stderr) {
+        if (code === 0 && !stderr) {
+            var onDefaultPath = !isWindows;
+            onInstall(installFile, onDefaultPath);
+        } else {
+            onError(stderr);
+        }
+    });
+}
+
 function clusterQuickPick(cluster) : ClusterQuickPick {
     return new ClusterQuickPick(cluster);
 }

@@ -1145,7 +1145,24 @@ function acsSelectCluster(subName) {
 }
 
 function acsInstallCli() {
-    // az acs kubernetes install-cli (opt: --install-location)
+    acsShowProgress("Downloading kubectl command line tool...");
+    acs.installCli(
+        (installLocation, onDefaultPath) => {
+            var message = 'kubectl installed.';
+            var details = 'kubectl installation location: ' + installLocation;
+            if (onDefaultPath) {
+                message = message + ' See Output window for details.';
+            } else {
+                message = message + ' See Output window for additional installation info.';
+                details = details + '\n***NOTE***: This location is not on your system PATH.\nAdd this directory to your path, or set the VS Code\n*vs-kubernetes.kubectl-path* config setting.';
+                acsShowOutput(details);
+            }
+            vscode.window.showInformationMessage(message);
+        },
+        err => {
+            acsShowError('Unable to download kubectl. See Output window for error.', err);
+        }
+    );
 }
 
 function acsGetCredentials(cluster) {
@@ -1154,11 +1171,20 @@ function acsGetCredentials(cluster) {
 }
 
 function acsShowProgress(message) {
-    showOutput(message, 'Kubernetes Configure from ACS');
+    acsShowOutput(message);
 }
 
 function acsShowError(message, err) {
     vscode.window.showErrorMessage(message);
-    showOutput(err, 'Kubernetes Configure from ACS');
+    acsShowOutput(err);
 }
 
+var _acsOutputChannel : vscode.OutputChannel = null;
+
+function acsShowOutput(message) {
+    if (!_acsOutputChannel) {
+        _acsOutputChannel = vscode.window.createOutputChannel('Kubernetes Configure from ACS');
+    }
+    _acsOutputChannel.appendLine(message);
+    _acsOutputChannel.show();
+}
