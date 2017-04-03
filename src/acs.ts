@@ -89,14 +89,14 @@ export function installCli(onInstall, onError) {
         var appDataDir = process.env['LOCALAPPDATA'];
         installDir = appDataDir + '\\kubectl';
         installFile = installDir + '\\kubectl.exe';
-        cmd = 'md "' + installDir + '" && ' + cmdCore + ' --install-location="' + installFile + '"';
+        cmd = `(if not exist "${installDir}" md "${installDir}") & ${cmdCore} --install-location="${installFile}`;
     } else {
         // Bah, the default Linux install location requires admin permissions too!
         // Fortunately, $HOME/bin is on the path albeit not created by default.
         var homeDir = process.env['HOME'];
         installDir = homeDir + '/bin';
         installFile = installDir + '/kubectl';
-        cmd = 'mkdir "' + installDir + '" && ' + cmdCore + ' --install-location="' + installFile + '"';
+        cmd = `mkdir "${installDir}" ; ${cmdCore} --install-location="${installFile}`;
     }
     shell.exec(cmd, function(code, stdout, stderr) {
         if (code === 0 && !stderr) {
