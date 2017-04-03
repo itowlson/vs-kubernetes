@@ -108,6 +108,18 @@ export function installCli(onInstall, onError) {
     });
 }
 
+export function getCredentials(cluster : Cluster, onSuccess, onError) {
+    var cmd = 'az acs kubernetes get-credentials -n ' + cluster.name + ' -g ' + cluster.resourceGroup;
+    shell.exec(cmd, function(code, stdout, stderr) {
+        if (code === 0 && !stderr) {
+            onSuccess();
+        } else {
+            onError(stderr);
+        }
+    });
+
+}
+
 function clusterQuickPick(cluster) : ClusterQuickPick {
     return new ClusterQuickPick(cluster);
 }

@@ -1166,8 +1166,14 @@ function acsInstallCli() {
 }
 
 function acsGetCredentials(cluster) {
-    // az acs kubernetes get-credentials -n cluster_name -g resource_group
-    vscode.window.showWarningMessage('Getting credentials for ' + cluster.name + ' in ' + cluster.resourceGroup + ' - not implemented');
+    acsShowProgress("Configuring Kubernetes credentials for " + cluster.name + "...");
+    acs.getCredentials(cluster,
+        () => {
+            vscode.window.showInformationMessage('Successfully configured kubectl with Azure Container Service cluster credentials.');
+        },
+        err => {
+            acsShowError('Unable to get Azure Container Service cluster credentials. See Output window for error.', err);
+        });
 }
 
 function acsShowProgress(message) {
