@@ -3,13 +3,23 @@
 import * as vscode from 'vscode';
 import * as shelljs from 'shelljs';
 
+export function isWindows() : boolean {
+    return (process.platform == 'win32');
+}
+
+export function isUnix() : boolean {
+    return !isWindows();
+}
+
 export function execOpts() {
-    var home = process.env[(process.platform == 'win32') ? 'USERPROFILE' : 'HOME'];
+    var env = process.env;
+    if (isWindows()) {
+        var home = process.env['USERPROFILE'];
+        env = Object.assign({ }, env, { 'HOME': home });
+    }
     var opts = {
         'cwd': vscode.workspace.rootPath,
-        'env': {
-            'HOME': home
-        },
+        'env': env,
         'async': true
     };
     return opts;

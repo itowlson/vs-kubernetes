@@ -3,6 +3,12 @@
 import * as vscode from 'vscode';
 import * as shell from './shell';
 
+export function verifyPrerequisites(onSatisfied, onFailure) {
+    // Check az installed
+    // Check az logged in
+    // Check for SSH keys
+}
+
 export function selectSubscription(onSelection, onNone, onError) {
     // prereq: az login
     //   -- how and when can we detect if not logged in - think account set fails but not account list?
@@ -46,7 +52,11 @@ export function selectSubscription(onSelection, onNone, onError) {
 }
 
 export function selectKubernetesClustersFromActiveSubscription(onSelection, onNone, onError) {
-    shell.exec("az acs list --query [?orchestratorProfile.orchestratorType==`Kubernetes`].{name:name,resourceGroup:resourceGroup}", function(code, stdout, stderr) {
+    var query = '[?orchestratorProfile.orchestratorType==`Kubernetes`].{name:name,resourceGroup:resourceGroup}';
+    if (shell.isUnix()) {
+        query = `'${query}'`;
+    }
+    shell.exec(`az acs list --query ${query}`, function(code, stdout, stderr) {
         if (code === 0 && !stderr) {
             var clusters : Cluster[] = JSON.parse(stdout);
             switch (clusters.length) {
@@ -80,7 +90,7 @@ export function installCli(onInstall, onError) {
     var installDir, installFile;
     var cmd;
     var cmdCore = 'az acs kubernetes install-cli';
-    var isWindows = (process.platform == 'win32');
+    var isWindows = shell.isWindows();
     if (isWindows) {
         // The default Windows install location requires admin permissions; install
         // into a user profile directory instead. We process the path explicitly
@@ -89,14 +99,14 @@ export function installCli(onInstall, onError) {
         var appDataDir = process.env['LOCALAPPDATA'];
         installDir = appDataDir + '\\kubectl';
         installFile = installDir + '\\kubectl.exe';
-        cmd = `(if not exist "${installDir}" md "${installDir}") & ${cmdCore} --install-location="${installFile}`;
+        cmd = `(if not exist "${installDir}" md "${installDir}") & ${cmdCore} --install-location="${installFile}"`;
     } else {
         // Bah, the default Linux install location requires admin permissions too!
         // Fortunately, $HOME/bin is on the path albeit not created by default.
         var homeDir = process.env['HOME'];
         installDir = homeDir + '/bin';
         installFile = installDir + '/kubectl';
-        cmd = `mkdir "${installDir}" ; ${cmdCore} --install-location="${installFile}`;
+        cmd = `mkdir "${installDir}" ; ${cmdCore} --install-location="${installFile}"`;
     }
     shell.exec(cmd, function(code, stdout, stderr) {
         if (code === 0 && !stderr) {
