@@ -2,16 +2,34 @@
 
 import * as vscode from 'vscode';
 import * as shell from './shell';
+import * as fs from 'fs';
 
 export function verifyPrerequisites(onSatisfied, onFailure) {
-    // Check az installed
-    // Check az logged in
-    // Check for SSH keys
+    var errors = new Array<String>();
+
+    shell.exec('az --help', function(code, stdout, stderr) {
+        if (code != 0 || stderr) {
+            errors.push('Azure CLI 2.0 not found - install Azure CLI 2.0 and log in');
+        }
+
+        prereqCheckSSHKeys(errors);
+
+        if (errors.length === 0) {
+            onSatisfied();
+        } else {
+            onFailure(errors);
+        }
+    });
+}
+
+function prereqCheckSSHKeys(errors : Array<String>) {
+    var sshKeyFile = shell.combinePath(shell.home(), '.ssh/id_rsa');
+    if (!fs.existsSync(sshKeyFile)) {
+        errors.push('SSH keys not found - expected key file at ' + sshKeyFile);
+    }
 }
 
 export function selectSubscription(onSelection, onNone, onError) {
-    // prereq: az login
-    //   -- how and when can we detect if not logged in - think account set fails but not account list?
     shell.exec("az account list --query [*].name", function(code, stdout, stderr) {
         if (code === 0 && !stderr) {  // az account list returns exit code 0 even if not logged in
             var accountNames = JSON.parse(stdout);

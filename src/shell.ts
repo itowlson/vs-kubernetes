@@ -11,11 +11,24 @@ export function isUnix() : boolean {
     return !isWindows();
 }
 
+export function home() {
+    var homeVar = isWindows() ? 'USERPROFILE' : 'HOME';
+    return process.env[homeVar];
+}
+
+export function combinePath(basePath, relativePath : string) {
+    var separator = '/';
+    if (isWindows()) {
+        relativePath = relativePath.replace(/\//g, '\\');
+        separator = '\\';
+    }
+    return basePath + separator + relativePath;
+}
+
 export function execOpts() {
     var env = process.env;
     if (isWindows()) {
-        var home = process.env['USERPROFILE'];
-        env = Object.assign({ }, env, { 'HOME': home });
+        env = Object.assign({ }, env, { 'HOME': home() });
     }
     var opts = {
         'cwd': vscode.workspace.rootPath,

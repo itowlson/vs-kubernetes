@@ -1112,8 +1112,23 @@ function removeDebugKubernetes() {
 }
 
 function configureFromAcsKubernetes() {
-    // prereq: az login
-    //   -- how and when can we detect if not logged in - think account set fails but not account list?
+    acsShowProgress("Verifying prerequisites...");
+    acs.verifyPrerequisites(
+        () => {
+            acsSelectSubscription();
+        },
+        (errs : Array<string>) => {
+            if (errs.length === 1) {
+                acsShowError('Missing prerequisite for Kubernetes configuration. ' + errs[0], errs[0]);
+            } else {
+                var message = errs.join('\n');
+                acsShowError('Missing prerequisites for Kubernetes configuration. See Output window for details.', message);
+            }
+        }
+    );
+}
+
+function acsSelectSubscription() {
     acsShowProgress("Retrieving Azure subscriptions...");
     acs.selectSubscription(
         subName => {
