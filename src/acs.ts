@@ -124,7 +124,7 @@ export function installCli(onInstall, onError) {
         var homeDir = process.env['HOME'];
         installDir = homeDir + '/bin';
         installFile = installDir + '/kubectl';
-        cmd = `mkdir "${installDir}" ; ${cmdCore} --install-location="${installFile}"`;
+        cmd = `mkdir -p "${installDir}" ; ${cmdCore} --install-location="${installFile}"`;
     }
     shell.exec(cmd, function(code, stdout, stderr) {
         if (code === 0 && !stderr) {
