@@ -104,7 +104,7 @@ function checkForKubectlInternal(errorMessageMode, handler) {
 
 function getCheckKubectlContextMessage(errorMessageMode) {
     if (errorMessageMode === 'activation') {
-        return ' Extension will not function correctly.';
+        return ' Kubernetes commands other than configuration will not function correctly.';
     } else if (errorMessageMode === 'command') {
         return ' Cannot execute command.';
     }
