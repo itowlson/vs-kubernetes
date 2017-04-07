@@ -26,7 +26,8 @@
         "onCommand:extension.vsKubernetesTerminal",
         "onCommand:extension.vsKubernetesDiff",
         "onCommand:extension.vsKubernetesDebug",
-        "onCommand:extension.vsKubernetesRemoveDebug"
+        "onCommand:extension.vsKubernetesRemoveDebug",
+        "onCommand:extension.vsKubernetesConfigureFromAcs"
     ],
     "main": "./out/src/extension",
     "contributes": {
@@ -99,6 +100,9 @@
         }, {
             "command": "extension.vsKubernetesRemoveDebug",
             "title": "Kubernetes Remove Debug"
+        }, {
+            "command": "extension.vsKubernetesConfigureFromAcs",
+            "title": "Kubernetes Configure from ACS"
         }]
     },
     "scripts": {

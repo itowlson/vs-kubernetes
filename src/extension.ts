@@ -11,11 +11,12 @@ import * as fs from 'fs';
 
 // External dependencies
 import * as yaml from 'js-yaml';
-import * as shell from 'shelljs';
 import * as dockerfileParse from 'dockerfile-parse';
 
 // Internal dependencies
 import formatExplain from './explainer';
+import * as shell from './shell';
+import * as acs from './acs';
 
 const WINDOWS = 'win32';
 
@@ -46,6 +47,7 @@ export function activate(context) {
         vscode.commands.registerCommand('extension.vsKubernetesDiff', diffKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesDebug', debugKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesRemoveDebug', removeDebugKubernetes),
+        vscode.commands.registerCommand('extension.vsKubernetesConfigureFromAcs', configureFromAcsKubernetes),
         vscode.languages.registerHoverProvider(
             { language: 'json', scheme: 'file' },
             { provideHover: provideHoverJson }
@@ -102,7 +104,7 @@ function checkForKubectlInternal(errorMessageMode, handler) {
 
 function getCheckKubectlContextMessage(errorMessageMode) {
     if (errorMessageMode === 'activation') {
-        return ' Extension will not function correctly.';
+        return ' Kubernetes commands other than configuration will not function correctly.';
     } else if (errorMessageMode === 'command') {
         return ' Cannot execute command.';
     }
@@ -441,7 +443,7 @@ function kubectlInternal(command, handler) {
     checkForKubectl('command', function () {
         var bin = baseKubectlPath();
         var cmd = bin + ' ' + command
-        shellExec(cmd, handler);
+        shell.exec(cmd, handler);
     });
 }
 
@@ -459,27 +461,6 @@ function kubectlPath() {
         bin = bin + '.exe';
     }
     return bin;
-}
-
-function shellExecOpts() {
-    var home = process.env[(process.platform === WINDOWS) ? 'USERPROFILE' : 'HOME'];
-    var opts = {
-        'cwd': vscode.workspace.rootPath,
-        'env': {
-            'HOME': home
-        },
-        'async': true
-    };
-    return opts;
-}
-
-function shellExec(cmd, handler) {
-    try {
-        var opts = shellExecOpts();
-        shell.exec(cmd, opts, handler);
-    } catch (ex) {
-        vscode.window.showErrorMessage(ex);
-    }
 }
 
 function getKubernetes() {
@@ -507,8 +488,7 @@ function findVersionInternal(fn) {
         return;
     }
 
-    var opts = shellExecOpts();
-    shell.exec('git describe --always --dirty', opts, function (code, stdout, stderr) {
+    shell.execCore('git describe --always --dirty', shell.execOpts(), function (code, stdout, stderr) {
         if (code !== 0) {
             vscode.window.showErrorMessage('git log returned: ' + code);
             console.log(stderr);
@@ -577,10 +557,10 @@ function runKubernetes() {
 
 function buildPushThenExec(fn) {
     findNameAndImage().then(function (name, image) {
-        shellExec(`docker build -t ${image} .`, function (result, stdout, stderr) {
+        shell.exec(`docker build -t ${image} .`, function (result, stdout, stderr) {
             if (result === 0) {
                 vscode.window.showInformationMessage(image + ' built.');
-                shellExec('docker push ' + image, function (result, stdout, stderr) {
+                shell.exec('docker push ' + image, function (result, stdout, stderr) {
                     if (result === 0) {
                         vscode.window.showInformationMessage(image + ' pushed.');
                         fn(name, image);
@@ -896,11 +876,10 @@ function syncKubernetes() {
                 vscode.window.showErrorMessage(`unexpected image name: ${container.image}`);
                 return;
             }
-            var opts = shellExecOpts();
             var cmd = `git checkout ${pieces[1]}`;
 
             //eslint-disable-next-line no-unused-vars
-            shell.exec(cmd, opts, function (code, stdout, stderr) {
+            shell.execCore(cmd, shell.execOpts(), function (code, stdout, stderr) {
                 if (code !== 0) {
                     vscode.window.showErrorMessage(`git checkout returned: ${code}`);
                     return 'error';
@@ -925,7 +904,7 @@ function findBinary(binName, callback) {
         }
     }
 
-    shell.exec(cmd, opts, function (code, stdout, stderr) {
+    shell.execCore(cmd, opts, function (code, stdout, stderr) {
         if (code) {
             callback(code, stderr);
         } else {
@@ -1130,4 +1109,103 @@ function removeDebugKubernetes() {
             })
         });
     });
+}
+
+function configureFromAcsKubernetes() {
+    acsShowProgress("Verifying prerequisites...");
+    acs.verifyPrerequisites(
+        () => {
+            acsSelectSubscription();
+        },
+        (errs : Array<string>) => {
+            if (errs.length === 1) {
+                acsShowError('Missing prerequisite for Kubernetes configuration. ' + errs[0], errs[0]);
+            } else {
+                var message = errs.join('\n');
+                acsShowError('Missing prerequisites for Kubernetes configuration. See Output window for details.', message);
+            }
+        }
+    );
+}
+
+function acsSelectSubscription() {
+    acsShowProgress("Retrieving Azure subscriptions...");
+    acs.selectSubscription(
+        subName => {
+            acsSelectCluster(subName);
+        },
+        () => {
+            vscode.window.showInformationMessage('No Azure subscriptions.');
+        },
+        err => {
+            acsShowError('Unable to list Azure subscriptions. See Output window for error.', err);
+        }
+    );
+}
+
+function acsSelectCluster(subName) {
+    acsShowProgress("Retrieving Azure Container Service Kubernetes clusters...");
+    acs.selectKubernetesClustersFromActiveSubscription(
+        cluster => {
+            acsInstallCli();
+            acsGetCredentials(cluster);
+        },
+        () => {
+            vscode.window.showInformationMessage('No Kubernetes clusters in subscription ' + subName);
+        },
+        err => {
+            acsShowError('Unable to select a Kubernetes cluster in ' + subName + '. See Output window for error.', err);
+         }
+     );
+}
+
+function acsInstallCli() {
+    acsShowProgress("Downloading kubectl command line tool...");
+    acs.installCli(
+        (installLocation, onDefaultPath) => {
+            var message = 'kubectl installed.';
+            var details = 'kubectl installation location: ' + installLocation;
+            if (onDefaultPath) {
+                message = message + ' See Output window for details.';
+            } else {
+                message = message + ' See Output window for additional installation info.';
+                details = details + '\n***NOTE***: This location is not on your system PATH.\nAdd this directory to your path, or set the VS Code\n*vs-kubernetes.kubectl-path* config setting.';
+                acsShowOutput(details);
+            }
+            vscode.window.showInformationMessage(message);
+        },
+        err => {
+            acsShowError('Unable to download kubectl. See Output window for error.', err);
+        }
+    );
+}
+
+function acsGetCredentials(cluster) {
+    acsShowProgress("Configuring Kubernetes credentials for " + cluster.name + "...");
+    acs.getCredentials(cluster,
+        () => {
+            vscode.window.showInformationMessage('Successfully configured kubectl with Azure Container Service cluster credentials.');
+        },
+        err => {
+            acsShowError('Unable to get Azure Container Service cluster credentials. See Output window for error.', err);
+        });
+}
+
+function acsShowProgress(message) {
+    acsShowOutput(message);
+}
+
+function acsShowError(message, err) {
+    vscode.window.showErrorMessage(message);
+    acsShowOutput(err);
+}
+
+var _acsOutputChannel : vscode.OutputChannel = null;
+
+function acsShowOutput(message) {
+    if (!_acsOutputChannel) {
+        _acsOutputChannel = vscode.window.createOutputChannel('Kubernetes Configure from ACS');
+    }
+    _acsOutputChannel.appendLine(message);
+    _acsOutputChannel.show();
 }
