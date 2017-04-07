@@ -1002,8 +1002,8 @@ const _debugInternal = function (name, image) {
 
 const _doDebug = function (name, image, cmd) {
     const deploymentName = `${name}-debug`;
-    const runCmd = `${deploymentName} --image= ${image} -i --attach=false -- ${cmd}`;
-    console.log(` run ${runCmd}`);
+    const runCmd = `run ${deploymentName} --image=${image} -i --attach=false -- ${cmd}`;
+    console.log(runCmd);
     kubectlInternal(runCmd, function (result, stdout, stderr) {
         if (result !== 0) {
             vscode.window.showErrorMessage('Failed to start debug container: ' + stderr);
@@ -1017,7 +1017,7 @@ const _doDebug = function (name, image, cmd) {
             var podName = podList.items[0].metadata.name;
             vscode.window.showInformationMessage('Debug pod running as: ' + podName);
 
-            waitForRunningPod(name, function () {
+            waitForRunningPod(podName, function () {
                 kubectl(` port-forward ${podName} 5858:5858 8000:8000`);
 
                 vscode.commands.executeCommand(
