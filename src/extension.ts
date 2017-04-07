@@ -12,6 +12,8 @@ import * as fs from 'fs';
 // External dependencies
 import * as yaml from 'js-yaml';
 import * as dockerfileParse from 'dockerfile-parse';
+import * as k8s from 'k8s';
+import * as pluralize from 'pluralize';
 
 // Internal dependencies
 import formatExplain from './explainer';
@@ -22,6 +24,7 @@ const WINDOWS = 'win32';
 
 let explainActive = false;
 let kubectlFound = false;
+let swaggerSpecPromise = null;
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
@@ -143,7 +146,7 @@ function providerHover(document, position, token, syntax) {
         }
 
         explain(obj, field).then(
-            (msg) => resolve(new vscode.Hover(formatExplain(msg)))
+            (msg : string) => resolve(new vscode.Hover(msg))
         );
     });
 
@@ -237,12 +240,14 @@ function explain(obj, field) {
             ref = ref + "." + field;
         }
 
-        kubectlInternal(` explain ${ref}`, function (result, stdout, stderr) {
-            if (result !== 0) {
-                vscode.window.showErrorMessage("Failed to run explain: " + stderr);
-                return;
-            }
-            resolve(stdout);
+        console.log('EXPLAIN: ' + ref);
+
+        if (!swaggerSpecPromise) {
+            swaggerSpecPromise = readSwagger();
+        }
+
+        swaggerSpecPromise.then(function (s) {
+            resolve(swaggerMeUp(s, ref));
         });
     });
 }
@@ -261,6 +266,9 @@ function explainActiveWindow() {
     if (explainActive) {
         vscode.window.showInformationMessage("Kubernetes API explain activated.");
         bar.show();
+        if (!swaggerSpecPromise) {
+            swaggerSpecPromise = readSwagger();
+        }
     } else {
         vscode.window.showInformationMessage("Kubernetes API explain deactivated.");
         bar.hide();
@@ -461,6 +469,185 @@ function kubectlPath() {
         bin = bin + '.exe';
     }
     return bin;
+}
+
+function readSwagger() {
+    return new Promise(function (resolve, reject)
+    {
+        var kubeConfig = shell.combinePath(shell.home(), ".kube/config")
+        fs.readFile(kubeConfig, 'utf8', (err, data) => {
+            if (err) {
+                reject(err);
+                return;
+            }
+            var kcconfigf = data;
+            var kcconfig = yaml.safeLoad(kcconfigf);
+            var apiVersion = kcconfig['apiVersion'];
+            var currentContextName = kcconfig['current-context'];
+            var currentContextDef = kcconfig['contexts'].find(c => c['name'] === currentContextName);
+            if (!currentContextDef) {
+                reject({ kubectlError: 'noCurrentContext', message: 'No current context in .kube/config' });
+            }
+            var currentContext = currentContextDef['context'];
+            var currentClusterDef = kcconfig['clusters'].find(c => c['name'] === currentContext['cluster']);
+            if (!currentClusterDef) {
+                reject({ kubectlError: 'noCluster', message: 'Invalid cluster in current context in .kube/config' });
+            }
+            var currentCluster = currentClusterDef['cluster'];
+            var endpoint = currentCluster['server'];
+            var cadata = currentCluster['certificate-authority-data'];
+            var currentUserDef = kcconfig['users'].find(u => u['name'] === currentContext['user']);
+            if (!currentUserDef) {
+                reject({ kubectlError: 'noUser', message: 'Invalid user in current context in .kube/config' });
+                return;
+            }
+            var currentUser = currentUserDef['user'];
+            var clientCertData = currentUser['client-certificate-data'];
+            var clientKeyData = currentUser['client-key-data'];
+            var kapi = k8s.api({
+                endpoint: endpoint,
+                auth: {
+                    clientCert: Buffer.from(clientCertData, 'base64'),
+                    clientKey: Buffer.from(clientKeyData, 'base64'),
+                    caCert: Buffer.from(cadata, 'base64')
+                },
+                version: '/'
+            });
+            kapi.get('swagger.json', function (err, data) {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(data);
+                }
+            });
+        });
+    });
+}
+
+function swaggerMeUp(swagger, fieldsPath : string) {
+    //var swagger = swaggerSpecPromise.; // JSON.parse(fs.readFileSync('C:\\temp\\kube-swagger.json', 'utf8'));
+
+    // var fieldsPath : string;
+
+    // fieldsPath = 'Deployment';
+    return smu(swagger, fieldsPath);
+
+    // fieldsPath = "Deployment.metadata.labels";
+    // smu(swagger, fieldsPath);
+
+    // fieldsPath = 'Deployment.spec.template.spec.containers.ports.containerPort';
+    // smu(swagger, fieldsPath);
+
+    // fieldsPath = 'Deployment.apiVersion';
+    // smu(swagger, fieldsPath);
+
+    // fieldsPath = 'pod';
+    // smu(swagger, fieldsPath);
+
+    // fieldsPath = 'pod.spec.volumes';
+    // smu(swagger, fieldsPath);
+}
+
+function singularizeVersionedName(name : string) {
+    var bits = name.split('.');
+    var lastBit = bits.pop();
+    lastBit = pluralize.singular(lastBit);
+    bits.push(lastBit);
+    return bits.join('.');
+}
+
+function findPropertyCI(obj, name) {
+    var n = (name + "").toLowerCase();
+    for (var p in obj) {
+        if ((p + "").toLowerCase() == n) {
+            return obj[p];
+        }
+    }
+    var singname = singularizeVersionedName(name);
+    if (singname == name) {
+        return undefined;
+    } else {
+        return findPropertyCI(obj, singname);
+    }
+}
+
+function smu(swagger, fieldsPath : string) {
+    // shell.exec('kubectl explain ' + fieldsPath, function(code, stdout, stderr) {
+    //     acsShowOutput(fieldsPath);
+    //     acsShowOutput('----------------------------');
+        var f = fieldsPath.split('.');
+        var tl = f.shift();
+        var v1def = findPropertyCI(swagger.definitions, 'v1.' + tl);
+        var v1beta1def = findPropertyCI(swagger.definitions, 'v1beta1.' + tl);
+        var def = v1def || v1beta1def;
+        var text = smuChase(swagger, def, tl, f);
+        return text;
+    //     acsShowOutput(text);
+    //     acsShowOutput('----------- vs -------------');
+    //     acsShowOutput(stdout);
+    //     acsShowOutput('============================');
+    //     acsShowOutput('');
+    // });
+}
+
+function typeDesc(p) {
+    var baseType = p.type || 'object';
+    if (baseType == 'array') {
+        return typeDesc(p.items) + '[]';
+    }
+    return baseType;
+}
+
+function smuChase(swagger, defn, name, fields : string[]) {
+    if (fields.length === 0) {
+        // defn is the definition of the field - dump it
+        // (it may be a simple or complex type)
+        var props = defn.properties;
+        if (props) {
+            var ph = '';
+            for (var p in props) {
+                ph = ph + `**${p}** (${typeDesc(props[p])})\n\n${props[p].description}\n\n`;
+            }
+            //var propInfos = props.map(p => `**${p}** (${typeDesc(props[p])})\n\n${props[p].description}`);
+            return `${name}: ${defn.description}\n\n${ph}`; //${propInfos.join('\n\n')}`;
+            //return "COMPLEX: " + JSON.stringify(props);
+        } else {
+            return "PRIMITIVE: " + JSON.stringify(defn);
+        }
+    } else {
+        // we are at an interim stage of the chain: chase
+        // to the type of the next field in the traversal
+        var fieldName = fields.shift();
+        var props = defn.properties;
+        var fieldDefn = findPropertyCI(props, fieldName);
+        var fieldType;
+        if (fieldDefn.type == 'array') {
+            fieldType = fieldDefn['items']['$ref'];
+        } else {
+            fieldType = fieldDefn['$ref'];
+        }
+        if (fieldType) {
+            var typeDefnPath : string[] = fieldType.split('/');
+            typeDefnPath.shift();
+            var m = swagger;
+            for (var p of typeDefnPath) {
+                m = findPropertyCI(m, p);
+                if (!m) {
+                    return `ERROR: undefined at ${m.name}->${p}`;
+                }
+            }
+            var typeDefn = m;
+            return smuChase(swagger, typeDefn, fieldName, fields);
+        } else {
+            if (fields.length === 0) {
+                return `**${fieldName}** (${fieldDefn.type})\n\n${fieldDefn.description}`;
+            } else {
+                // we're at a primitive type, but still have a path to
+                // traverse - error
+                return `ERROR: terminal type ${defn.name} with outstanding path from ${fieldName}`;
+            }
+        }
+    }
 }
 
 function getKubernetes() {
