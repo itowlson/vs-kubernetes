@@ -403,7 +403,7 @@ function chaseFieldPath(swagger, currentProperty : TypeModel, currentPropertyNam
                     if (nextProperty) {
                         return chaseFieldPath(swagger, nextProperty, nextField, fields);
                     } else {
-                        return explainError('field does not exist: ' + nextField);
+                        return explainError(nextField, 'field does not exist');
                     }
                 }
 
@@ -411,7 +411,7 @@ function chaseFieldPath(swagger, currentProperty : TypeModel, currentPropertyNam
                 return explainOne(currentPropertyName, typeDesc(currentPropertyTypeInfo), currentProperty.description);
             }
         } else {
-            return explainError('unresolvable type ref ' + currentPropertyTypeRef);
+            return explainError(currentPropertyTypeRef, 'unresolvable type reference');
         }
 
     } else {
@@ -425,7 +425,7 @@ function chaseFieldPath(swagger, currentProperty : TypeModel, currentPropertyNam
                 if (nextProperty) {
                     return chaseFieldPath(swagger, nextProperty, nextField, fields);
                 } else {
-                    return explainError('field does not exist: ' + nextField);
+                    return explainError(nextField, 'field does not exist');
                 }
             }
         } else {
@@ -454,8 +454,8 @@ function explainComplex2(name : string, description : string, typeDescription : 
     return `${name}: ${description}\n\n${typeDescription}\n\n${ph}`;
 }
 
-function explainError(text) {
-    return `_${text}_`;
+function explainError(header : string, error : string) {
+    return `**${header}:** ${error}`;
 }
 
 function chaseFieldPath_old(swagger, startingFrom, name : string, fields : string[]) {
