@@ -99,3 +99,10 @@ Auto build/push for run and debug
 ### 0.0.7
 
 Fix a hard-coded value that made debug not work on any machine except mine...
+
+### 0.08
+
+Lots of fixes.
+Contributors:
+   * Ian Towlson
+   * Bhargav Nookala

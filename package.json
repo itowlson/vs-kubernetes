@@ -2,7 +2,7 @@
     "name": "vs-kubernetes",
     "displayName": "vs-kubernetes",
     "description": "An extension for interacting with the Kubernetes cluster orcheastrator in Visual Studio Code",
-    "version": "0.0.7",
+    "version": "0.0.8",
     "publisher": "brendandburns",
     "engines": {
         "vscode": "^1.6.0"
