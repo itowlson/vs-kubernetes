@@ -4,7 +4,7 @@
 
 ## Configuring
 
-### Setting up your environment.
+### Setting up your environment
 
 This extension assumes that you have a `Dockerfile` in the root directory of
 your project.
@@ -17,7 +17,13 @@ It also assumes that you have the following binaries on your `PATH`:
 If you don't have those on your PATH then the extension will fail in
 unexpected ways.
 
+For setting up `kubectl` you have a couple of additional options:
+
+   * If `kubectl` is not on your PATH then you can tell the extension its location using the `vs-kubernetes.kubectl-path` workspace setting. This should be the full file name and path of the kubectl binary.
+   * If you are using the extension to work with an Azure Container Service then you can install and configure `kubectl` using the `Kubernetes Configure from ACS` command.
+
 ### Setting up the image repository path
+
 If you want to use the `Kubernetes Run` and `Kubernetes Debug` features
 then you need to have correctly set the image and repository for your
 images. You can do this via preferences in VS-Code:
@@ -57,11 +63,22 @@ menu (`ctrl-shift-p`)
    * `Kubernetes Expose` - Expose the object in the current document as a service.
 
 ### Commands for application directories
+
    * `Kubernetes Run` - Run the current application as a Kubernetes Deployment
+   * `Kubernetes Terminal` - Open an interactive terminal session in a pod of the Kubernetes Deployment
+   * `Kubernetes Exec` - Run a command in a pod of the Kubernetes Deployment
+   * `Kubernetes Debug` - Run the current application as a Kubernetes Deployment and attach a debugging session to it (currently works only for Node.js deployments)
+   * `Kubernetes Remove Debug` - Remove the deployment and/or service created for a `Kubernetes Debug` session
+
+### Configuration commands
+
+   * `Kubernetes Configure from ACS` - Install and configure the Kubernetes command line tool (kubectl) from an Azure Container Service
 
 ## Extension Settings
 
-None currently.
+   * `vs-kubernetes.namespace` - The namespace to use for all commands
+   * `vs-kubernetes.kubectl-path` - File path to the kubectl binary. Note this is the binary file itself, not just the directory containing the file. On Windows, this must contain the `.exe` extension.
+   * `vsdocker.imageUser` - Image prefix for docker images e.g. 'docker.io/brendanburns'
 
 ## Known Issues
 
@@ -100,9 +117,9 @@ Auto build/push for run and debug
 
 Fix a hard-coded value that made debug not work on any machine except mine...
 
-### 0.08
+### 0.0.8
 
 Lots of fixes.
 Contributors:
-   * Ian Towlson
+   * Ivan Towlson
    * Bhargav Nookala
