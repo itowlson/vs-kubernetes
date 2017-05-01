@@ -17,6 +17,7 @@ import * as dockerfileParse from 'dockerfile-parse';
 import formatExplain from './explainer';
 import * as shell from './shell';
 import * as acs from './acs';
+import * as kuberesources from './kuberesources';
 
 const WINDOWS = 'win32';
 
@@ -45,6 +46,7 @@ export function activate(context) {
         vscode.commands.registerCommand('extension.vsKubernetesExec', execKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesTerminal', terminalKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesDiff', diffKubernetes),
+        vscode.commands.registerCommand('extension.vsKubernetesScale', scaleKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesDebug', debugKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesRemoveDebug', removeDebugKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesConfigureFromAcs', configureFromAcsKubernetes),
@@ -388,7 +390,7 @@ function getTextForActiveWindow(callback) {
 }
 
 function loadKubernetes() {
-    promptKindName("load", { nameOptional: true }, function (value) {
+    promptKindName(kuberesources.commonKinds, "load", { nameOptional: true }, function (value) {
         kubectlInternal(" -o json get " + value, function (result, stdout, stderr) {
             if (result !== 0) {
                 vscode.window.showErrorMessage("Get command failed: " + stderr);
@@ -469,7 +471,7 @@ function getKubernetes() {
         maybeRunKubernetesCommandForActiveWindow('get --no-headers -o wide -f ');
         return;
     }
-    findKindNameOrPrompt('get', { nameOptional: true }, function (value) {
+    findKindNameOrPrompt(kuberesources.commonKinds, 'get', { nameOptional: true }, function (value) {
         kubectl(" get " + value + " -o wide --no-headers");
     });
 }
@@ -549,6 +551,29 @@ function _findNameAndImageInternal(fn) {
     });
 }
 
+function scaleKubernetes() {
+    var kindName = findKindNameOrPrompt(kuberesources.scaleableKinds, 'scale', {}, kindName => {
+        promptScaleKubernetes(kindName);
+    });
+}
+
+function promptScaleKubernetes(kindName : string) {
+    vscode.window.showInputBox({ prompt: `How many replicas would you like to scale ${kindName} to?` }).then(value => {
+        if (value) {
+            let replicas = parseFloat(value);
+            if (Number.isInteger(replicas) && replicas >= 0) {
+                invokeScaleKubernetes(kindName, replicas);
+            } else {
+                vscode.window.showErrorMessage('Replica count must be a non-negative integer');
+            }
+        }
+    });
+}
+
+function invokeScaleKubernetes(kindName : string, replicas : number) {
+    kubectl(`scale --replicas=${replicas} ${kindName}`);
+}
+
 function runKubernetes() {
     buildPushThenExec(function (name, image) {
         kubectlInternal(`run ${name} --image=${image}`, kubectlDone);
@@ -605,28 +630,31 @@ function findKindNameForText(text) {
     }
 }
 
-function findKindNameOrPrompt(descriptionVerb, opts, handler) {
+function findKindNameOrPrompt(resourceKinds : kuberesources.ResourceKind[], descriptionVerb, opts, handler) {
     var kindName = findKindName();
     if (kindName === null) {
-        promptKindName(descriptionVerb, opts, handler);
+        promptKindName(resourceKinds, descriptionVerb, opts, handler);
     } else {
         handler(kindName);
     }
 }
 
-function promptKindName(descriptionVerb, opts, handler) {
+function promptKindName(resourceKinds : kuberesources.ResourceKind[], descriptionVerb, opts, handler) {
     vscode.window.showInputBox({ prompt: "What resource do you want to " + descriptionVerb + "?", placeHolder: 'Empty string to be prompted' }).then(function (resource) {
         if (resource === '') {
-            quickPickKindName(opts, handler);
+            quickPickKindName(resourceKinds, opts, handler);
+        } else if (resource === undefined) {
+            return;
         } else {
             handler(resource);
         }
     });
 }
 
-function quickPickKindName(opts, handler) {
-    vscode.window.showQuickPick(['deployment', 'job', 'pod', 'service']).then(function (kind) {
-        if (kind) {
+function quickPickKindName(resourceKinds : kuberesources.ResourceKind[], opts, handler) {
+    vscode.window.showQuickPick(resourceKinds).then(function (resourceKind) {
+        if (resourceKind) {
+            let kind = resourceKind.abbreviation;
             kubectlInternal("get " + kind, function (code, stdout, stderr) {
                 if (code === 0) {
                     var names = parseNamesFromKubectlLines(stdout);
@@ -653,7 +681,7 @@ function quickPickKindName(opts, handler) {
                             });
                         }
                     } else {
-                        vscode.window.showInformationMessage("No resources of type " + kind + " in cluster");
+                        vscode.window.showInformationMessage("No resources of type " + resourceKind.displayName + " in cluster");
                     }
                 } else {
                     vscode.window.showErrorMessage(stderr);
@@ -801,7 +829,7 @@ function getPorts() {
 }
 
 function describeKubernetes() {
-    findKindNameOrPrompt('describe', { nameOptional: true }, function (value) {
+    findKindNameOrPrompt(kuberesources.commonKinds, 'describe', { nameOptional: true }, function (value) {
         var fn = curry(kubectlOutput, value + "-describe");
         kubectlInternal(' describe ' + value, fn);
     });
@@ -914,7 +942,7 @@ function findBinary(binName, callback) {
 }
 
 const deleteKubernetes = function () {
-    findKindNameOrPrompt('delete', { nameOptional: true }, function (kindName) {
+    findKindNameOrPrompt(kuberesources.commonKinds, 'delete', { nameOptional: true }, function (kindName) {
         if (kindName) {
             var commandArgs = kindName;
             if (!containsName(kindName)) {
