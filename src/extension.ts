@@ -21,6 +21,7 @@ import * as acs from './acs';
 import * as kuberesources from './kuberesources';
 import * as docker from './docker';
 import * as kubeconfig from './kubeconfig';
+import * as filetype from './filetype';
 
 const WINDOWS = 'win32';
 
@@ -34,9 +35,7 @@ export function activate(context) {
     checkForKubectl('activation', function () { });
 
     const subscriptions = [
-        vscode.commands.registerCommand('extension.vsKubernetesCreate',
-            maybeRunKubernetesCommandForActiveWindow.bind(this, 'create -f')
-        ),
+        vscode.commands.registerCommand('extension.vsKubernetesCreate', createKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesDelete', deleteKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesApply', applyKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesExplain', explainActiveWindow),
@@ -397,6 +396,33 @@ function getTextForActiveWindow(callback) {
         });
     } else {
         callback(null, editor.document.fileName);
+    }
+}
+
+function createKubernetes() {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+        vscode.window.showErrorMessage("No active editor!");
+        return;
+    }
+
+    const text = editor.document.getText();
+    const fileType = filetype.probe(text);
+
+    switch (fileType) {
+        case 'KubernetesJSON':
+        case 'KubernetesYAML':
+            maybeRunKubernetesCommandForActiveWindow('create -f ');
+            break;
+        case 'Dockerfile':
+            // TODO: DO WHAT
+            break;
+        case 'DockerCompose':
+            // KOMPOSE UP ALL THE THINGS
+            break;
+        default:
+            maybeRunKubernetesCommandForActiveWindow('create -f ');
+            break;
     }
 }
 
