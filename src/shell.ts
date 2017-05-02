@@ -3,8 +3,10 @@
 import * as vscode from 'vscode';
 import * as shelljs from 'shelljs';
 
+const WINDOWS = 'win32';
+
 export function isWindows() : boolean {
-    return (process.platform == 'win32');
+    return (process.platform === WINDOWS);
 }
 
 export function isUnix() : boolean {

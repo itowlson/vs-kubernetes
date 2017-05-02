@@ -19,8 +19,7 @@ import * as shell from './shell';
 import * as acs from './acs';
 import * as kuberesources from './kuberesources';
 import * as kubectl from './kubectl';
-
-const WINDOWS = 'win32';
+import * as resourcechooser from './resourcechooser';
 
 let explainActive = false;
 
@@ -345,7 +344,7 @@ function getTextForActiveWindow(callback) {
 }
 
 function loadKubernetes() {
-    promptKindName(kuberesources.commonKinds, "load", { nameOptional: true }, function (value) {
+    resourcechooser.promptKindName(kuberesources.commonKinds, "load", { nameOptional: true }, function (value) {
         kubectl.invoke(" -o json get " + value, function (result, stdout, stderr) {
             if (result !== 0) {
                 vscode.window.showErrorMessage("Get command failed: " + stderr);
@@ -369,7 +368,7 @@ function loadKubernetes() {
 }
 
 function exposeKubernetes() {
-    var kindName = findKindName();
+    var kindName = resourcechooser.findKindName();
     if (!kindName) {
         vscode.window.showErrorMessage("couldn't find a relevant type to expose.");
         return;
@@ -384,12 +383,12 @@ function exposeKubernetes() {
 }
 
 function getKubernetes() {
-    var kindName = findKindName();
+    var kindName = resourcechooser.findKindName();
     if (kindName) {
         maybeRunKubernetesCommandForActiveWindow('get --no-headers -o wide -f ');
         return;
     }
-    findKindNameOrPrompt(kuberesources.commonKinds, 'get', { nameOptional: true }, function (value) {
+    resourcechooser.findKindNameOrPrompt(kuberesources.commonKinds, 'get', { nameOptional: true }, function (value) {
         kubectl.invoke(" get " + value + " -o wide --no-headers");
     });
 }
@@ -470,7 +469,7 @@ function _findNameAndImageInternal(fn) {
 }
 
 function scaleKubernetes() {
-    var kindName = findKindNameOrPrompt(kuberesources.scaleableKinds, 'scale', {}, kindName => {
+    var kindName = resourcechooser.findKindNameOrPrompt(kuberesources.scaleableKinds, 'scale', {}, kindName => {
         promptScaleKubernetes(kindName);
     });
 }
@@ -522,115 +521,11 @@ function buildPushThenExec(fn) {
     });
 }
 
-function findKindName() {
-    var editor = vscode.window.activeTextEditor;
-    if (!editor) {
-        vscode.window.showErrorMessage("No active editor!");
-        return null; // No open text editor
-    }
-    var text = editor.document.getText();
-    return findKindNameForText(text);
-}
-
-function findKindNameForText(text) {
-    try {
-        var obj = yaml.safeLoad(text);
-        if (!obj || !obj.kind) {
-            return null;
-        }
-        if (!obj.metadata || !obj.metadata.name) {
-            return null;
-        }
-        return obj.kind.toLowerCase() + '/' + obj.metadata.name;
-    } catch (ex) {
-        console.log(ex);
-        return null;
-    }
-}
-
-function findKindNameOrPrompt(resourceKinds : kuberesources.ResourceKind[], descriptionVerb, opts, handler) {
-    var kindName = findKindName();
-    if (kindName === null) {
-        promptKindName(resourceKinds, descriptionVerb, opts, handler);
-    } else {
-        handler(kindName);
-    }
-}
-
-function promptKindName(resourceKinds : kuberesources.ResourceKind[], descriptionVerb, opts, handler) {
-    vscode.window.showInputBox({ prompt: "What resource do you want to " + descriptionVerb + "?", placeHolder: 'Empty string to be prompted' }).then(function (resource) {
-        if (resource === '') {
-            quickPickKindName(resourceKinds, opts, handler);
-        } else if (resource === undefined) {
-            return;
-        } else {
-            handler(resource);
-        }
-    });
-}
-
-function quickPickKindName(resourceKinds : kuberesources.ResourceKind[], opts, handler) {
-    vscode.window.showQuickPick(resourceKinds).then(function (resourceKind) {
-        if (resourceKind) {
-            let kind = resourceKind.abbreviation;
-            kubectl.invoke("get " + kind, function (code, stdout, stderr) {
-                if (code === 0) {
-                    var names = parseNamesFromKubectlLines(stdout);
-                    if (names.length > 0) {
-                        if (opts && opts.nameOptional) {
-                            names.push('(all)');
-                            vscode.window.showQuickPick(names).then(function (name) {
-                                if (name) {
-                                    var kindName;
-                                    if (name === '(all)') {
-                                        kindName = kind;
-                                    } else {
-                                        kindName = kind + '/' + name;
-                                    }
-                                    handler(kindName);
-                                }
-                            });
-                        } else {
-                            vscode.window.showQuickPick(names).then(function (name) {
-                                if (name) {
-                                    var kindName = kind + '/' + name;
-                                    handler(kindName);
-                                }
-                            });
-                        }
-                    } else {
-                        vscode.window.showInformationMessage("No resources of type " + resourceKind.displayName + " in cluster");
-                    }
-                } else {
-                    vscode.window.showErrorMessage(stderr);
-                }
-            });
-        }
-    });
-}
-
-function containsName(kindName) {
+function containsName(kindName : string) {
     if (typeof kindName === 'string' || kindName instanceof String) {
         return kindName.indexOf('/') > 0;
     }
     return false;
-}
-
-function parseNamesFromKubectlLines(text) {
-    var lines = text.split('\n');
-    lines.shift();
-
-    var names = lines.filter((line) => {
-        return line.length > 0;
-    }).map((line) => {
-        return parseName(line);
-    });
-
-    return names;
-}
-
-function parseName(line) {
-    return line.split(' ')[0];
 }
 
 function curry(fn, arg) {
@@ -747,7 +642,7 @@ function getPorts() {
 }
 
 function describeKubernetes() {
-    findKindNameOrPrompt(kuberesources.commonKinds, 'describe', { nameOptional: true }, function (value) {
+    resourcechooser.findKindNameOrPrompt(kuberesources.commonKinds, 'describe', { nameOptional: true }, function (value) {
         var fn = curry(kubectlOutput, value + "-describe");
         kubectl.invoke(' describe ' + value, fn);
     });
@@ -836,7 +731,7 @@ function syncKubernetes() {
 }
 
 const deleteKubernetes = function () {
-    findKindNameOrPrompt(kuberesources.commonKinds, 'delete', { nameOptional: true }, function (kindName) {
+    resourcechooser.findKindNameOrPrompt(kuberesources.commonKinds, 'delete', { nameOptional: true }, function (kindName) {
         if (kindName) {
             var commandArgs = kindName;
             if (!containsName(kindName)) {
@@ -874,11 +769,11 @@ const diffKubernetes = function (callback) {
         var kindName = null;
         var fileName = null;
         if (data) {
-            kindName = findKindNameForText(data);
+            kindName = resourcechooser.findKindNameForText(data);
             fileName = path.join(os.tmpdir(), 'local.json');
             fs.writeFile(fileName, data, handleError);
         } else if (file) {
-            kindName = findKindName();
+            kindName = resourcechooser.findKindName();
             fileName = file;
         } else {
             vscode.window.showInformationMessage('Nothing to diff.');

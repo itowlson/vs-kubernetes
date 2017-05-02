@@ -2,8 +2,6 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as shell from './shell';
 
-const WINDOWS = 'win32';
-
 let kubectlFound = false;
 
 export function checkPresent(errorMessageMode, handler) {
@@ -91,7 +89,7 @@ export function kubectlPath() {
 function findBinary(binName, callback) {
     let cmd = `which ${binName}`
 
-    if (process.platform === WINDOWS) {
+    if (shell.isWindows()) {
         cmd = `where.exe ${binName}.exe`;
     }
 
