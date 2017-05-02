@@ -119,6 +119,7 @@
         "js-yaml": "^3.8.2",
         "dockerfile-parse": "^0.2.0",
         "k8s": "^0.4.12",
+        "tmp": "^0.0.31",
         "pluralize": "^4.0.0"
     },
     "devDependencies": {

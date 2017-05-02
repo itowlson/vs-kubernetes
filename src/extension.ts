@@ -12,12 +12,14 @@ import * as fs from 'fs';
 // External dependencies
 import * as yaml from 'js-yaml';
 import * as dockerfileParse from 'dockerfile-parse';
+import * as tmp from 'tmp';
 
 // Internal dependencies
 import * as explainer from './explainer';
 import * as shell from './shell';
 import * as acs from './acs';
 import * as kuberesources from './kuberesources';
+import * as docker from './docker';
 import * as kubeconfig from './kubeconfig';
 
 const WINDOWS = 'win32';
@@ -305,18 +307,14 @@ function maybeRunKubernetesCommandForActiveWindow(command) {
     if (editor.selection) {
         text = editor.document.getText(editor.selection);
         if (text.length > 0) {
-            proc = kubectl(command + "-");
-            proc.stdin.write(text);
-            proc.stdin.end();
+            kubectlViaTempFile(command, text);
             return true;
         }
     }
     if (editor.document.isUntitled) {
         text = editor.document.getText();
         if (text.length > 0) {
-            proc = kubectl(command + "-");
-            proc.stdin.write(text);
-            proc.stdin.end();
+            kubectlViaTempFile(command, text);
             return true;
         }
         return false;
@@ -332,15 +330,23 @@ function maybeRunKubernetesCommandForActiveWindow(command) {
                         vscode.window.showErrorMessage("Save failed.");
                         return;
                     }
-                    kubectl(command + editor.document.fileName);
+                    kubectl(`${command} "${editor.document.fileName}"`);
                 });
             }
         });
     } else {
-        console.log(command + editor.document.fileName);
-        kubectl(command + editor.document.fileName);
+        const fullCommand = `${command} "${editor.document.fileName}"`;
+        console.log(fullCommand);
+        kubectl(fullCommand);
     }
     return true;
+}
+
+function kubectlViaTempFile(command, fileContent) {
+    const tmpobj = tmp.fileSync();
+    fs.writeFileSync(tmpobj.name, fileContent);
+    console.log(tmpobj.name);
+    kubectl(`${command} ${tmpobj.name}`);
 }
 
 /**
@@ -543,7 +549,8 @@ function _findNameAndImageInternal(fn) {
         vscode.window.showErrorMessage("This command requires an open folder.");
         return;
     }
-    var name = path.basename(vscode.workspace.rootPath);
+    var folderName = path.basename(vscode.workspace.rootPath);
+    var name = docker.sanitiseTag(folderName);
     findVersion().then(function (version) {
         var image = name + ":" + version;
         var user = vscode.workspace.getConfiguration().get("vsdocker.imageUser", null);
