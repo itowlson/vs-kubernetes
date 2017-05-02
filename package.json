@@ -25,6 +25,7 @@
         "onCommand:extension.vsKubernetesExec",
         "onCommand:extension.vsKubernetesTerminal",
         "onCommand:extension.vsKubernetesDiff",
+        "onCommand:extension.vsKubernetesScale",
         "onCommand:extension.vsKubernetesDebug",
         "onCommand:extension.vsKubernetesRemoveDebug",
         "onCommand:extension.vsKubernetesConfigureFromAcs"
@@ -94,6 +95,9 @@
         }, {
             "command": "extension.vsKubernetesDiff",
             "title": "Kubernetes Diff"
+        }, {
+            "command": "extension.vsKubernetesScale",
+            "title": "Kubernetes Scale"
         }, {
             "command": "extension.vsKubernetesDebug",
             "title": "Kubernetes Debug"
