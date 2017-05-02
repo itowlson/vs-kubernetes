@@ -14,14 +14,16 @@ import * as yaml from 'js-yaml';
 import * as dockerfileParse from 'dockerfile-parse';
 
 // Internal dependencies
-import formatExplain from './explainer';
+import * as explainer from './explainer';
 import * as shell from './shell';
 import * as acs from './acs';
+import * as kubeconfig from './kubeconfig';
 
 const WINDOWS = 'win32';
 
 let explainActive = false;
 let kubectlFound = false;
+let swaggerSpecPromise = null;
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
@@ -143,7 +145,7 @@ function providerHover(document, position, token, syntax) {
         }
 
         explain(obj, field).then(
-            (msg) => resolve(new vscode.Hover(formatExplain(msg)))
+            (msg : string) => resolve(new vscode.Hover(msg))
         );
     });
 
@@ -237,12 +239,12 @@ function explain(obj, field) {
             ref = ref + "." + field;
         }
 
-        kubectlInternal(` explain ${ref}`, function (result, stdout, stderr) {
-            if (result !== 0) {
-                vscode.window.showErrorMessage("Failed to run explain: " + stderr);
-                return;
-            }
-            resolve(stdout);
+        if (!swaggerSpecPromise) {
+            swaggerSpecPromise = explainer.readSwagger();
+        }
+
+        swaggerSpecPromise.then(function (s) {
+            resolve(explainer.readExplanation(s, ref));
         });
     });
 }
@@ -261,6 +263,9 @@ function explainActiveWindow() {
     if (explainActive) {
         vscode.window.showInformationMessage("Kubernetes API explain activated.");
         bar.show();
+        if (!swaggerSpecPromise) {
+            swaggerSpecPromise = explainer.readSwagger();
+        }
     } else {
         vscode.window.showInformationMessage("Kubernetes API explain deactivated.");
         bar.hide();
