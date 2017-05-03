@@ -5,20 +5,16 @@
 // Please refer to their documentation on https://mochajs.org/ for help.
 //
 
-var fs = require('fs');
-var path = require('path');
+import * as fs from 'fs';
+import * as path from 'path';
 
-// You can import and use all API from the 'vscode' module
-// as well as import your extension to test it
-// var vscode = require('vscode');
-// var extension = require('../extension');
-var explainer = require('../out/src/explainer');  // TODO: TyyyypppeeScriippptt!!!
-var textassert = require('../out/test/textassert');
+import * as explainer from '../src/explainer';
+import * as textassert from '../test/textassert';
 
 // Defines a Mocha test suite to group tests of similar kind together
 suite("Extension Tests", function() {
 
-    var swaggerJson = fs.readFileSync(path.join(__dirname, 'kube-swagger.json'), 'utf8');
+    var swaggerJson = fs.readFileSync(path.join(__dirname, '../../test/kube-swagger.json'), 'utf8');
     var swagger = JSON.parse(swaggerJson);
 
     test("Kind documentation includes kind name - Deployment", function() {
