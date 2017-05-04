@@ -16,12 +16,12 @@ import * as tmp from 'tmp';
 
 // Internal dependencies
 import * as explainer from './explainer';
-import * as shell from './shell';
+import { shell } from './shell';
 import * as acs from './acs';
 import * as kuberesources from './kuberesources';
 import * as docker from './docker';
 import * as kubeconfig from './kubeconfig';
-import * as kubectl from './kubectl';
+import { kubectl } from './kubectl';
 
 let explainActive = false;
 let swaggerSpecPromise = null;
@@ -29,7 +29,7 @@ let swaggerSpecPromise = null;
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export function activate(context) {
-    kubectl.checkForKubectl('activation', function () { });
+    kubectl.checkPresent('activation', function () { });
 
     const subscriptions = [
         vscode.commands.registerCommand('extension.vsKubernetesCreate',
@@ -813,7 +813,7 @@ function execKubernetesCore(isTerminal) {
 
             if (isTerminal) {
                 const terminalExecCmd : string[] = ['exec', '-it', pod.metadata.name, cmd];
-                var term = vscode.window.createTerminal('exec', kubectl.kubectlPath(), terminalExecCmd);
+                var term = vscode.window.createTerminal('exec', kubectl.path(), terminalExecCmd);
                 term.show();
             } else {
                 const execCmd = ' exec ' + pod.metadata.name + ' ' + cmd;

@@ -1,7 +1,7 @@
 'use strict';
 
 import * as vscode from 'vscode';
-import * as shell from './shell';
+import { shell } from './shell';
 import * as fs from 'fs';
 
 export function verifyPrerequisites(onSatisfied, onFailure) {
