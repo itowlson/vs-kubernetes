@@ -125,6 +125,7 @@
     "devDependencies": {
         "@types/mocha": "^2.2.32",
         "@types/node": "^6.0.40",
+        "tslint": "^4.5.1",
         "typescript": "^2.2.1",
         "vscode": "^1.1.0"
     },
