@@ -29,7 +29,7 @@ let swaggerSpecPromise = null;
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export function activate(context) {
-    kubectl.checkForKubectl('activation', () => {});
+    kubectl.checkPresent('activation', () => {});
 
     const subscriptions = [
         vscode.commands.registerCommand('extension.vsKubernetesCreate',
@@ -290,14 +290,14 @@ function maybeRunKubernetesCommandForActiveWindow(command) {
                         vscode.window.showErrorMessage("Save failed.");
                         return;
                     }
-                    kubectl.kubectl(`${command} "${editor.document.fileName}"`);
+                    kubectl.invoke(`${command} "${editor.document.fileName}"`);
                 });
             }
         });
     } else {
         const fullCommand = `${command} "${editor.document.fileName}"`;
         console.log(fullCommand);
-        kubectl.kubectl(fullCommand);
+        kubectl.invoke(fullCommand);
     }
     return true;
 }
@@ -306,7 +306,7 @@ function kubectlViaTempFile(command, fileContent) {
     const tmpobj = tmp.fileSync();
     fs.writeFileSync(tmpobj.name, fileContent);
     console.log(tmpobj.name);
-    kubectl.kubectl(`${command} ${tmpobj.name}`);
+    kubectl.invoke(`${command} ${tmpobj.name}`);
 }
 
 /**
@@ -379,7 +379,7 @@ function getTextForActiveWindow(callback) {
 
 function loadKubernetes() {
     promptKindName(kuberesources.commonKinds, "load", { nameOptional: true }, (value) => {
-        kubectl.kubectlInternal(" -o json get " + value, (result, stdout, stderr) => {
+        kubectl.invoke(" -o json get " + value, (result, stdout, stderr) => {
             if (result !== 0) {
                 vscode.window.showErrorMessage('Get command failed: ' + stderr);
                 return;
@@ -417,7 +417,7 @@ function exposeKubernetes() {
         cmd += ' --port=' + ports[0]
     }
 
-    kubectl.kubectl(cmd);
+    kubectl.invoke(cmd);
 }
 
 function getKubernetes() {
@@ -427,7 +427,7 @@ function getKubernetes() {
         return;
     }
     findKindNameOrPrompt(kuberesources.commonKinds, 'get', { nameOptional: true }, (value) => {
-        kubectl.kubectl(" get " + value + " -o wide --no-headers");
+        kubectl.invoke(" get " + value + " -o wide --no-headers");
     });
 }
 
@@ -457,7 +457,7 @@ function findVersionInternal(fn) {
 }
 
 function findPods(labelQuery, callback) {
-    kubectl.kubectlInternal(` get pods -o json -l ${labelQuery}`, (result, stdout, stderr) => {
+    kubectl.invoke(` get pods -o json -l ${labelQuery}`, (result, stdout, stderr) => {
         if (result !== 0) {
             vscode.window.showErrorMessage('Kubectl command failed: ' + stderr);
             return;
@@ -526,12 +526,12 @@ function promptScaleKubernetes(kindName : string) {
 }
 
 function invokeScaleKubernetes(kindName : string, replicas : number) {
-    kubectl.kubectl(`scale --replicas=${replicas} ${kindName}`);
+    kubectl.invoke(`scale --replicas=${replicas} ${kindName}`);
 }
 
 function runKubernetes() {
     buildPushThenExec((name, image) => {
-        kubectl.kubectlInternal(`run ${name} --image=${image}`, kubectl.kubectlDone);
+        kubectl.invoke(`run ${name} --image=${image}`);
     });
 }
 
@@ -610,7 +610,7 @@ function quickPickKindName(resourceKinds : kuberesources.ResourceKind[], opts, h
     vscode.window.showQuickPick(resourceKinds).then((resourceKind) => {
         if (resourceKind) {
             let kind = resourceKind.abbreviation;
-            kubectl.kubectlInternal("get " + kind, (code, stdout, stderr) => {
+            kubectl.invoke("get " + kind, (code, stdout, stderr) => {
                 if (code === 0) {
                     let names = parseNamesFromKubectlLines(stdout);
                     if (names.length > 0) {
@@ -762,7 +762,7 @@ function getLogs(pod) {
         cmd += ' --namespace=' + pod.namespace;
     }
     let fn = curry(kubectlOutput, pod.name + '-output');
-    kubectl.kubectlInternal(cmd, fn);
+    kubectl.invoke(cmd, fn);
 }
 
 function kubectlOutput(result, stdout, stderr, name) {
@@ -797,7 +797,7 @@ function getPorts() {
 function describeKubernetes() {
     findKindNameOrPrompt(kuberesources.commonKinds, 'describe', { nameOptional: true }, (value) => {
         const fn = curry(kubectlOutput, value + "-describe");
-        kubectl.kubectlInternal(' describe ' + value, fn);
+        kubectl.invoke(' describe ' + value, fn);
     });
 }
 
@@ -858,14 +858,14 @@ function execKubernetesCore(isTerminal) {
 
             if (isTerminal) {
                 const terminalExecCmd : string[] = ['exec', '-it', pod.metadata.name, cmd];
-                const term = vscode.window.createTerminal('exec', kubectl.kubectlPath(), terminalExecCmd);
+                const term = vscode.window.createTerminal('exec', kubectl.path(), terminalExecCmd);
                 term.show();
                 return;
             }
 
             const execCmd = ' exec ' + pod.metadata.name + ' ' + cmd;
             let fn = curry(kubectlOutput, pod.metadata.name + '-exec')
-            kubectl.kubectlInternal(execCmd, fn);
+            kubectl.invoke(execCmd, fn);
         });
     });
 }
@@ -899,7 +899,7 @@ const deleteKubernetes = () => {
             if (!containsName(kindName)) {
                 commandArgs = kindName + " --all";
             }
-            kubectl.kubectl('delete ' + commandArgs);
+            kubectl.invoke('delete ' + commandArgs);
         }
     });
 }
@@ -948,7 +948,7 @@ const diffKubernetes = (callback) => {
             return;
         }
 
-        kubectl.kubectlInternal(` get -o json ${kindName}`, (result, stdout, stderr) => {
+        kubectl.invoke(` get -o json ${kindName}`, (result, stdout, stderr) => {
             if (result !== 0) {
                 vscode.window.showErrorMessage('Error running command: ' + stderr);
                 return;
@@ -996,7 +996,7 @@ const _doDebug = (name, image, cmd) => {
     const runCmd = `run ${deploymentName} --image=${image} -i --attach=false -- ${cmd}`;
     console.log(runCmd);
 
-    kubectl.kubectlInternal(runCmd, (result, stdout, stderr) => {
+    kubectl.invoke(runCmd, (result, stdout, stderr) => {
         if (result !== 0) {
             vscode.window.showErrorMessage('Failed to start debug container: ' + stderr);
             return;
@@ -1012,7 +1012,7 @@ const _doDebug = (name, image, cmd) => {
             vscode.window.showInformationMessage('Debug pod running as: ' + podName);
 
             waitForRunningPod(podName, () => {
-                kubectl.kubectl(` port-forward ${podName} 5858:5858 8000:8000`);
+                kubectl.invoke(` port-forward ${podName} 5858:5858 8000:8000`);
 
                 vscode.commands.executeCommand(
                     'vscode.startDebug',
@@ -1036,7 +1036,7 @@ const _doDebug = (name, image, cmd) => {
                             }
 
                             const exposeCmd = `expose deployment ${deploymentName} --type=LoadBalancer --port=${port}`;
-                            kubectl.kubectlInternal(exposeCmd, (result, stdout, stderr) => {
+                            kubectl.invoke(exposeCmd, (result, stdout, stderr) => {
                                 if (result !== 0) {
                                     vscode.window.showErrorMessage('Failed to expose deployment: ' + stderr);
                                     return;
@@ -1054,7 +1054,7 @@ const _doDebug = (name, image, cmd) => {
 };
 
 const waitForRunningPod = (name, callback) => {
-    kubectl.kubectlInternal(` get pods ${name} -o jsonpath --template="{.status.phase}"`,
+    kubectl.invoke(` get pods ${name} -o jsonpath --template="{.status.phase}"`,
         (result, stdout, stderr) => {
             if (result !== 0) {
                 vscode.window.showErrorMessage(`Failed to run command (${result}) ${stderr}`);
@@ -1072,7 +1072,7 @@ const waitForRunningPod = (name, callback) => {
 
 function exists(kind, name, handler) {
     //eslint-disable-next-line no-unused-vars
-    kubectl.kubectlInternal('get ' + kind + ' ' + name, (result) => {
+    kubectl.invoke('get ' + kind + ' ' + name, (result) => {
         handler(result === 0);
     });
 }
@@ -1103,11 +1103,11 @@ function removeDebugKubernetes() {
                     }
 
                     if (service) {
-                        kubectl.kubectl('delete service ' + deploymentName);
+                        kubectl.invoke('delete service ' + deploymentName);
                     }
 
                     if (deployment) {
-                        kubectl.kubectl('delete deployment ' + deploymentName);
+                        kubectl.invoke('delete deployment ' + deploymentName);
                     }
                 });
             })

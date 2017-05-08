@@ -4,7 +4,7 @@ import * as shell from './shell';
 
 let kubectlFound = false;
 
-export function checkForKubectl(errorMessageMode, handler?) {
+export function checkPresent(errorMessageMode, handler?) {
     if (!kubectlFound) {
         checkForKubectlInternal(errorMessageMode, handler);
         return;
@@ -62,19 +62,19 @@ function getCheckKubectlContextMessage(errorMessageMode) {
     return '';
 }
 
-export function kubectl(command) {
-    kubectlInternal(command, kubectlDone);
+export function invoke(command, handler?) {
+    kubectlInternal(command, handler || kubectlDone);
 }
 
-export function kubectlInternal(command, handler) {
-    checkForKubectl('command', () => {
+function kubectlInternal(command, handler) {
+    checkPresent('command', () => {
         const bin = baseKubectlPath();
         let cmd = bin + ' ' + command
         shell.exec(cmd, handler);
     });
 }
 
-export function kubectlDone(result, stdout, stderr) {
+function kubectlDone(result, stdout, stderr) {
     if (result !== 0) {
         vscode.window.showErrorMessage('Kubectl command failed: ' + stderr);
         console.log(stderr);
@@ -92,7 +92,7 @@ function baseKubectlPath() {
     return bin;
 }
 
-export function kubectlPath() {
+export function path() {
     let bin = baseKubectlPath();
     if (shell.isWindows() && !(bin.endsWith('.exe'))) {
         bin = bin + '.exe';
