@@ -5,6 +5,8 @@ import * as shelljs from 'shelljs';
 
 const WINDOWS : string = 'win32';
 
+export type ShellHandler = (code : number, stdout : string, stderr : string) => void;
+
 export function isWindows() : boolean {
     return (process.platform === WINDOWS);
 }
@@ -18,7 +20,7 @@ export function home() {
     return process.env[homeVar];
 }
 
-export function combinePath(basePath, relativePath : string) {
+export function combinePath(basePath : string, relativePath : string) {
     let separator = '/';
     if (isWindows()) {
         relativePath = relativePath.replace(/\//g, '\\');
@@ -27,7 +29,7 @@ export function combinePath(basePath, relativePath : string) {
     return basePath + separator + relativePath;
 }
 
-export function execOpts() {
+export function execOpts() : any {
     let env = process.env;
     if (isWindows()) {
         env = Object.assign({ }, env, { HOME: home() });
@@ -40,7 +42,7 @@ export function execOpts() {
     return opts;
 }
 
-export function exec(cmd, handler) {
+export function exec(cmd : string, handler : ShellHandler) {
     try {
         execCore(cmd, execOpts(), handler);
     } catch (ex) {
@@ -48,6 +50,6 @@ export function exec(cmd, handler) {
     }
 }
 
-export function execCore(cmd, opts, handler) {
+export function execCore(cmd : string, opts : any, handler : ShellHandler) {
     shelljs.exec(cmd, opts, handler);
 }

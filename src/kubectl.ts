@@ -4,7 +4,9 @@ import * as shell from './shell';
 
 let kubectlFound = false;
 
-export function checkPresent(errorMessageMode, handler?) {
+type CheckPresentMessageMode = 'command' | 'activation';
+
+export function checkPresent(errorMessageMode : CheckPresentMessageMode, handler? : () => void) : void {
     if (!kubectlFound) {
         checkForKubectlInternal(errorMessageMode, handler);
         return;
@@ -13,7 +15,7 @@ export function checkPresent(errorMessageMode, handler?) {
     handler();
 }
 
-function checkForKubectlInternal(errorMessageMode, handler) {
+function checkForKubectlInternal(errorMessageMode : CheckPresentMessageMode, handler : () => void) : void {
     const
         contextMessage = getCheckKubectlContextMessage(errorMessageMode),
         bin = vscode.workspace.getConfiguration('vs-kubernetes')['vs-kubernetes.kubectl-path'];
@@ -53,7 +55,7 @@ function checkForKubectlInternal(errorMessageMode, handler) {
     handler();
 }
 
-function getCheckKubectlContextMessage(errorMessageMode) {
+function getCheckKubectlContextMessage(errorMessageMode : CheckPresentMessageMode) : string {
     if (errorMessageMode === 'activation') {
         return ' Kubernetes commands other than configuration will not function correctly.';
     } else if (errorMessageMode === 'command') {
@@ -62,11 +64,11 @@ function getCheckKubectlContextMessage(errorMessageMode) {
     return '';
 }
 
-export function invoke(command, handler?) {
+export function invoke(command : string, handler? : shell.ShellHandler) : void {
     kubectlInternal(command, handler || kubectlDone);
 }
 
-function kubectlInternal(command, handler) {
+function kubectlInternal(command : string, handler : shell.ShellHandler) : void {
     checkPresent('command', () => {
         const bin = baseKubectlPath();
         let cmd = bin + ' ' + command
@@ -74,7 +76,7 @@ function kubectlInternal(command, handler) {
     });
 }
 
-function kubectlDone(result, stdout, stderr) {
+function kubectlDone(result : number, stdout : string, stderr : string) : void {
     if (result !== 0) {
         vscode.window.showErrorMessage('Kubectl command failed: ' + stderr);
         console.log(stderr);
@@ -84,7 +86,7 @@ function kubectlDone(result, stdout, stderr) {
     vscode.window.showInformationMessage(stdout);
 }
 
-function baseKubectlPath() {
+function baseKubectlPath() : string {
     let bin = vscode.workspace.getConfiguration('vs-kubernetes')['vs-kubernetes.kubectl-path'];
     if (!bin) {
         bin = 'kubectl';
@@ -92,7 +94,7 @@ function baseKubectlPath() {
     return bin;
 }
 
-export function path() {
+export function path() : string {
     let bin = baseKubectlPath();
     if (shell.isWindows() && !(bin.endsWith('.exe'))) {
         bin = bin + '.exe';
@@ -100,8 +102,8 @@ export function path() {
     return bin;
 }
 
-function findBinary(binName, callback) {
-    let cmd = `which ${binName}`
+function findBinary(binName : string, callback : (errno : number | null, text : string) => void) {
+    let cmd = `which ${binName}`;
 
     if (shell.isWindows()) {
         cmd = `where.exe ${binName}.exe`;
