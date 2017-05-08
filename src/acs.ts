@@ -7,7 +7,7 @@ import * as fs from 'fs';
 export function verifyPrerequisites(onSatisfied, onFailure) {
     const errors = new Array<String>();
 
-    shell.exec('az --help', (code, stdout, stderr) => {
+    shell.exec('az --help').then(({code, stdout, stderr}) => {
         if (code != 0 || stderr) {
             errors.push('Azure CLI 2.0 not found - install Azure CLI 2.0 and log in');
         }
@@ -30,7 +30,7 @@ function prereqCheckSSHKeys(errors: Array<String>) {
 }
 
 export function selectSubscription(onSelection, onNone, onError) {
-    shell.exec("az account list --query [*].name -ojson", (code, stdout, stderr) => {
+    shell.exec("az account list --query [*].name -ojson").then(({code, stdout, stderr}) => {
         if (code === 0 && !stderr) {  // az account list returns exit code 0 even if not logged in
             const accountNames = JSON.parse(stdout);
             switch (accountNames.length) {
@@ -55,7 +55,7 @@ export function selectSubscription(onSelection, onNone, onError) {
                                 return;
                             }
 
-                            shell.exec('az account set --subscription "' + subName + '"', (code, stdout, stderr) => {
+                            shell.exec('az account set --subscription "' + subName + '"').then(({code, stdout, stderr}) => {
                                 if (code === 0 && !stderr) {
                                     onSelection(subName);
                                 } else {
@@ -77,7 +77,7 @@ export function selectKubernetesClustersFromActiveSubscription(onSelection, onNo
     if (shell.isUnix()) {
         query = `'${query}'`;
     }
-    shell.exec(`az acs list --query ${query} -ojson`, (code, stdout, stderr) => {
+    shell.exec(`az acs list --query ${query} -ojson`).then(({code, stdout, stderr}) => {
         if (code === 0 && !stderr) {
             const clusters: Cluster[] = JSON.parse(stdout);
             switch (clusters.length) {
@@ -126,7 +126,7 @@ export function installCli(onInstall, onError) {
         installFile = installDir + '/kubectl';
         cmd = `mkdir -p "${installDir}" ; ${cmdCore} --install-location="${installFile}"`;
     }
-    shell.exec(cmd, (code, stdout, stderr) => {
+    shell.exec(cmd).then(({code, stdout, stderr}) => {
         if (code === 0) {
             const onDefaultPath = !isWindows;
             onInstall(installFile, onDefaultPath);
@@ -138,7 +138,7 @@ export function installCli(onInstall, onError) {
 
 export function getCredentials(cluster: Cluster, onSuccess, onError) {
     const cmd = 'az acs kubernetes get-credentials -n ' + cluster.name + ' -g ' + cluster.resourceGroup;
-    shell.exec(cmd, (code, stdout, stderr) => {
+    shell.exec(cmd).then(({code, stdout, stderr}) => {
         if (code === 0 && !stderr) {
             onSuccess();
         } else {

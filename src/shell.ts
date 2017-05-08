@@ -5,6 +5,12 @@ import * as shelljs from 'shelljs';
 
 const WINDOWS : string = 'win32';
 
+export interface ShellResult {
+    readonly code : number;
+    readonly stdout : string;
+    readonly stderr : string
+};
+
 export type ShellHandler = (code : number, stdout : string, stderr : string) => void;
 
 export function isWindows() : boolean {
@@ -42,14 +48,16 @@ export function execOpts() : any {
     return opts;
 }
 
-export function exec(cmd : string, handler : ShellHandler) {
+export function exec(cmd : string) : Promise<ShellResult> {
     try {
-        execCore(cmd, execOpts(), handler);
+        return execCore(cmd, execOpts());
     } catch (ex) {
         vscode.window.showErrorMessage(ex);
     }
 }
 
-export function execCore(cmd : string, opts : any, handler : ShellHandler) {
-    shelljs.exec(cmd, opts, handler);
+export function execCore(cmd : string, opts : any) : Promise<ShellResult> {
+    return new Promise<ShellResult>((resolve, reject) => {
+        shelljs.exec(cmd, opts, (code, stdout, stderr) => resolve({code : code, stdout : stdout, stderr : stderr}));
+    });
 }

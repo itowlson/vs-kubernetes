@@ -72,7 +72,7 @@ function kubectlInternal(command : string, handler : shell.ShellHandler) : void 
     checkPresent('command', () => {
         const bin = baseKubectlPath();
         let cmd = bin + ' ' + command
-        shell.exec(cmd, handler);
+        shell.exec(cmd).then(({code, stdout, stderr}) => handler(code, stdout, stderr));
     });
 }
 
@@ -117,7 +117,7 @@ function findBinary(binName : string, callback : (errno : number | null, text : 
         }
     }
 
-    shell.execCore(cmd, opts, (code, stdout, stderr) => {
+    shell.execCore(cmd, opts).then(({code, stdout, stderr}) => {
         if (code) {
             callback(code, stderr);
             return;

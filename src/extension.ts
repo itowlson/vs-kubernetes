@@ -445,7 +445,7 @@ function findVersionInternal(fn) {
         return;
     }
 
-    shell.execCore('git describe --always --dirty', shell.execOpts(), (code, stdout, stderr) => {
+    shell.execCore('git describe --always --dirty', shell.execOpts()).then(({code, stdout, stderr}) => {
         if (code !== 0) {
             vscode.window.showErrorMessage('git log returned: ' + code);
             console.log(stderr);
@@ -537,11 +537,11 @@ function runKubernetes() {
 
 function buildPushThenExec(fn) {
     findNameAndImage().then((name, image) => {
-        shell.exec(`docker build -t ${image} .`, (result, stdout, stderr) => {
-            if (result === 0) {
+        shell.exec(`docker build -t ${image} .`).then(({code, stdout, stderr}) => {
+            if (code === 0) {
                 vscode.window.showInformationMessage(image + ' built.');
-                shell.exec('docker push ' + image, (result, stdout, stderr) => {
-                    if (result === 0) {
+                shell.exec('docker push ' + image).then(({code, stdout, stderr}) => {
+                    if (code === 0) {
                         vscode.window.showInformationMessage(image + ' pushed.');
                         fn(name, image);
                     } else {
@@ -882,7 +882,7 @@ function syncKubernetes() {
             const cmd = `git checkout ${pieces[1]}`;
 
             //eslint-disable-next-line no-unused-vars
-            shell.execCore(cmd, shell.execOpts(), (code, stdout, stderr) => {
+            shell.execCore(cmd, shell.execOpts()).then(({code, stdout, stderr}) => {
                 if (code !== 0) {
                     vscode.window.showErrorMessage(`git checkout returned: ${code}`);
                     return 'error';
