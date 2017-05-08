@@ -22,8 +22,6 @@ import * as kuberesources from './kuberesources';
 import * as docker from './docker';
 import * as kubeconfig from './kubeconfig';
 
-const WINDOWS = 'win32';
-
 let explainActive = false;
 let kubectlFound = false;
 let swaggerSpecPromise = null;
@@ -512,7 +510,7 @@ function baseKubectlPath() {
 
 function kubectlPath() {
     let bin = baseKubectlPath();
-    if (process.platform == 'win32' && !(bin.endsWith('.exe'))) {
+    if (shell.isWindows() && !(bin.endsWith('.exe'))) {
         bin = bin + '.exe';
     }
     return bin;
@@ -993,7 +991,7 @@ function syncKubernetes() {
 function findBinary(binName, callback) {
     let cmd = `which ${binName}`
 
-    if (process.platform === WINDOWS) {
+    if (shell.isWindows()) {
         cmd = `where.exe ${binName}.exe`;
     }
 
