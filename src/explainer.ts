@@ -5,13 +5,13 @@ import * as pluralize from 'pluralize';
 import * as kubeconfig from './kubeconfig';
 
 export function readSwagger() : Promise<any> {
-    return kubeconfig.readKubectlConfig().then(kc => readSwaggerCore(kc));
+    return kubeconfig.readKubectlConfig().then((kc) => readSwaggerCore(kc));
 }
 
 function readSwaggerCore(kc : kubeconfig.KubeConfig) : Promise<any> {
-    return new Promise(function (resolve, reject) {
-        var kapi = k8s.api(apiCredentials(kc));
-        kapi.get('swagger.json', function (err, data) {
+    return new Promise((resolve, reject) => {
+        const kapi = k8s.api(apiCredentials(kc));
+        kapi.get('swagger.json', (err, data) => {
             if (err) {
                 reject(err);
             } else {
@@ -22,17 +22,17 @@ function readSwaggerCore(kc : kubeconfig.KubeConfig) : Promise<any> {
 }
 
 export function readExplanation(swagger : any, fieldsPath : string) {
-    var fields = fieldsPath.split('.');
-    var kindName = fields.shift();
-    var kindDef = findKindModel(swagger, kindName);
-    var text = chaseFieldPath(swagger, kindDef, kindName, fields);
+    const fields = fieldsPath.split('.');
+    const kindName = fields.shift();
+    const kindDef = findKindModel(swagger, kindName);
+    const text = chaseFieldPath(swagger, kindDef, kindName, fields);
     return text;
 }
 
 function findKindModel(swagger : any, kindName : string) : TypeModel {
-    var v1def = findProperty(swagger.definitions, 'v1.' + kindName);
-    var v1beta1def = findProperty(swagger.definitions, 'v1beta1.' + kindName);
-    var kindDef = v1def || v1beta1def;
+    const v1def = findProperty(swagger.definitions, 'v1.' + kindName);
+    const v1beta1def = findProperty(swagger.definitions, 'v1beta1.' + kindName);
+    const kindDef = v1def || v1beta1def;
     return kindDef;
 }
 
@@ -111,20 +111,20 @@ function chaseFieldPath(swagger : any, currentProperty : TypeModel, currentPrope
     //         Case 3/3a: List the NAME, TYPE and DESCRIPTION of the current property.  (Ignore subsequent elements in the chain.)
     //       [So cases 3, 3a and 4 are all the same really.]
 
-    var currentPropertyTypeRef = currentProperty.$ref || (currentProperty.items ? currentProperty.items.$ref : undefined);
+    const currentPropertyTypeRef = currentProperty.$ref || (currentProperty.items ? currentProperty.items.$ref : undefined);
 
     if (currentPropertyTypeRef) {
-        var typeDefnPath : string[] = currentPropertyTypeRef.split('/');
+        let typeDefnPath : string[] = currentPropertyTypeRef.split('/');
         typeDefnPath.shift();
-        var currentPropertyTypeInfo = findTypeDefinition(swagger, typeDefnPath);
+        const currentPropertyTypeInfo = findTypeDefinition(swagger, typeDefnPath);
         if (currentPropertyTypeInfo) {
-            var typeRefProperties = currentPropertyTypeInfo.properties;
+            const typeRefProperties = currentPropertyTypeInfo.properties;
             if (typeRefProperties) {
                 if (fields.length === 0) {
                     return explainComplex(currentPropertyName, currentProperty.description, currentPropertyTypeInfo.description, typeRefProperties);
                 } else {
-                    var nextField = fields.shift();
-                    var nextProperty = findProperty(typeRefProperties, nextField);
+                    const nextField = fields.shift();
+                    const nextProperty = findProperty(typeRefProperties, nextField);
                     if (nextProperty) {
                         return chaseFieldPath(swagger, nextProperty, nextField, fields);
                     } else {
@@ -138,15 +138,14 @@ function chaseFieldPath(swagger : any, currentProperty : TypeModel, currentPrope
         } else {
             return explainError(currentPropertyTypeRef, 'unresolvable type reference');
         }
-
     } else {
-        var properties = currentProperty.properties;
+        const properties = currentProperty.properties;
         if (properties) {
             if (fields.length === 0) {
                 return explainComplex(currentPropertyName, currentProperty.description, undefined, properties);
             } else {
-                var nextField = fields.shift();
-                var nextProperty = findProperty(properties, nextField);
+                const nextField = fields.shift();
+                const nextProperty = findProperty(properties, nextField);
                 if (nextProperty) {
                     return chaseFieldPath(swagger, nextProperty, nextField, fields);
                 } else {
@@ -164,11 +163,11 @@ function explainOne(name : string, type : string, description : string) {
 }
 
 function explainComplex(name : string, description : string, typeDescription : string | undefined, children : any) {
-    var ph = '';
-    for (var p in children) {
+    let ph = '';
+    for (const p in children) {
         ph = ph + `**${p}** (${typeDesc(children[p])})\n\n${children[p].description}\n\n`;
     }
-    var typeDescriptionPara = '';
+    let typeDescriptionPara = '';
     if (typeDescription) {
         typeDescriptionPara = `\n\n${typeDescription}`;
     }
@@ -180,7 +179,7 @@ function explainError(header : string, error : string) {
 }
 
 function typeDesc(p : Typed) {
-    var baseType = p.type || 'object';
+    const baseType = p.type || 'object';
     if (baseType == 'array') {
         return typeDesc(p.items) + '[]';
     }
@@ -200,21 +199,21 @@ function apiCredentials(kc : kubeconfig.KubeConfig) {
 }
 
 function singularizeVersionedName(name : string) {
-    var bits = name.split('.');
-    var lastBit = bits.pop();
+    const bits = name.split('.');
+    let lastBit = bits.pop();
     lastBit = pluralize.singular(lastBit);
     bits.push(lastBit);
     return bits.join('.');
 }
 
 function findProperty(obj : any, name : string) {
-    var n = (name + "").toLowerCase();
-    for (var p in obj) {
+    const n = (name + "").toLowerCase();
+    for (const p in obj) {
         if ((p + "").toLowerCase() == n) {
             return obj[p];
         }
     }
-    var singname = singularizeVersionedName(name);
+    const singname = singularizeVersionedName(name);
     if (singname == name) {
         return undefined;
     } else {
@@ -223,8 +222,8 @@ function findProperty(obj : any, name : string) {
 }
 
 function findTypeDefinition(swagger : any, typeDefnPath : string[]) : TypeModel | undefined {
-    var m = swagger;
-    for (var p of typeDefnPath) {
+    let m = swagger;
+    for (const p of typeDefnPath) {
         m = findProperty(m, p);
         if (!m) {
             return undefined;

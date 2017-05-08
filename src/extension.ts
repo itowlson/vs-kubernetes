@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 // Standard node imports
 import * as os from 'os';
 import * as path from 'path';
-import * as fs from 'fs';
+import { fs } from './fs';
 
 // External dependencies
 import * as yaml from 'js-yaml';
@@ -16,7 +16,7 @@ import * as tmp from 'tmp';
 
 // Internal dependencies
 import * as explainer from './explainer';
-import * as shell from './shell';
+import { shell } from './shell';
 import * as acs from './acs';
 import * as kuberesources from './kuberesources';
 import * as docker from './docker';
