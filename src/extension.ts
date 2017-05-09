@@ -15,16 +15,19 @@ import * as dockerfileParse from 'dockerfile-parse';
 import * as tmp from 'tmp';
 
 // Internal dependencies
+import { host } from './host';
 import * as explainer from './explainer';
 import { shell } from './shell';
 import * as acs from './acs';
 import * as kuberesources from './kuberesources';
 import * as docker from './docker';
 import * as kubeconfig from './kubeconfig';
-import * as kubectl from './kubectl';
+import { create as kubectlCreate, Kubectl } from './kubectl';
 
 let explainActive = false;
 let swaggerSpecPromise = null;
+
+const kubectl = kubectlCreate(host, fs, shell);
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
