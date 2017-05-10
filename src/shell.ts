@@ -68,9 +68,9 @@ function execOpts() : any {
     return opts;
 }
 
-function exec(cmd : string) : Promise<ShellResult> {
+async function exec(cmd : string) : Promise<ShellResult> {
     try {
-        return execCore(cmd, execOpts());
+        return await execCore(cmd, execOpts());
     } catch (ex) {
         vscode.window.showErrorMessage(ex);
     }

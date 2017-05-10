@@ -32,7 +32,7 @@ const kubectl = kubectlCreate(host, fs, shell);
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export function activate(context) {
-    kubectl.checkPresent('activation', () => {});
+    kubectl.checkPresent('activation');
 
     const subscriptions = [
         vscode.commands.registerCommand('extension.vsKubernetesCreate',
