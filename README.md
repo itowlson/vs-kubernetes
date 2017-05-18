@@ -76,8 +76,9 @@ menu (`ctrl-shift-p`)
 
 ## Extension Settings
 
-   * `vs-kubernetes.namespace` - The namespace to use for all commands
-   * `vs-kubernetes.kubectl-path` - File path to the kubectl binary. Note this is the binary file itself, not just the directory containing the file. On Windows, this must contain the `.exe` extension.
+   * `vs-kubernetes` - Parent for Kubernetes-related extension settings
+       * `vs-kubernetes.namespace` - The namespace to use for all commands
+       * `vs-kubernetes.kubectl-path` - File path to the kubectl binary. Note this is the binary file itself, not just the directory containing the file. On Windows, this must contain the `.exe` extension.
    * `vsdocker.imageUser` - Image prefix for docker images e.g. 'docker.io/brendanburns'
 
 ## Known Issues
