@@ -30,7 +30,7 @@ function prereqCheckSSHKeys(errors: Array<String>) {
 }
 
 export function selectSubscription(onSelection, onNone, onError) {
-    shell.exec("az account list --query [*].name", (code, stdout, stderr) => {
+    shell.exec("az account list --query [*].name -ojson", (code, stdout, stderr) => {
         if (code === 0 && !stderr) {  // az account list returns exit code 0 even if not logged in
             const accountNames = JSON.parse(stdout);
             switch (accountNames.length) {
@@ -77,7 +77,7 @@ export function selectKubernetesClustersFromActiveSubscription(onSelection, onNo
     if (shell.isUnix()) {
         query = `'${query}'`;
     }
-    shell.exec(`az acs list --query ${query}`, (code, stdout, stderr) => {
+    shell.exec(`az acs list --query ${query} -ojson`, (code, stdout, stderr) => {
         if (code === 0 && !stderr) {
             const clusters: Cluster[] = JSON.parse(stdout);
             switch (clusters.length) {
@@ -85,9 +85,9 @@ export function selectKubernetesClustersFromActiveSubscription(onSelection, onNo
                     onNone();
                     break;
                 case 1:
-                    vscode.window.showInformationMessage('This will configure Kubernetes to use cluster ' + clusters[0].name, "OK").then((choice) => {
+                    vscode.window.showInformationMessage(`This will configure Kubernetes to use cluster ${clusters[0].name}`, "OK").then((choice) => {
                         if (choice == 'OK') {
-                            onSelection(choice);
+                            onSelection(clusters[0]);
                         }
                     });
                     break;
@@ -127,7 +127,7 @@ export function installCli(onInstall, onError) {
         cmd = `mkdir -p "${installDir}" ; ${cmdCore} --install-location="${installFile}"`;
     }
     shell.exec(cmd, (code, stdout, stderr) => {
-        if (code === 0 && !stderr) {
+        if (code === 0) {
             const onDefaultPath = !isWindows;
             onInstall(installFile, onDefaultPath);
         } else {
