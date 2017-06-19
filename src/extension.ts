@@ -134,6 +134,7 @@ function providerHover(document, position, token, syntax) {
     return new Promise(async (resolve) => {
         if (!explainActive) {
             resolve(null);
+            return;
         }
 
         const body = document.getText();
@@ -144,11 +145,13 @@ function providerHover(document, position, token, syntax) {
         } catch (err) {
             // Bad document
             resolve(null);
+            return;
         }
 
         // Not a k8s object.
         if (!obj.kind) {
             resolve(null);
+            return;
         }
 
         let property = findProperty(document.lineAt(position.line)),
