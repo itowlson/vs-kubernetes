@@ -31,7 +31,7 @@ function prereqCheckSSHKeys(errors: Array<String>) {
 }
 
 export function selectSubscription(onSelection, onNone, onError) {
-    shell.exec("az account list --query [*].name -ojson").then(({code, stdout, stderr}) => {
+    shell.exec("az account list --all --query [*].name -ojson").then(({code, stdout, stderr}) => {
         if (code === 0 && !stderr) {  // az account list returns exit code 0 even if not logged in
             const accountNames = JSON.parse(stdout);
             switch (accountNames.length) {
