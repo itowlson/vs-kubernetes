@@ -5,7 +5,7 @@
     "version": "0.0.8",
     "publisher": "brendandburns",
     "engines": {
-        "vscode": "^1.6.0"
+        "vscode": "^1.13.0"
     },
     "categories": [
         "Other"
@@ -28,7 +28,8 @@
         "onCommand:extension.vsKubernetesScale",
         "onCommand:extension.vsKubernetesDebug",
         "onCommand:extension.vsKubernetesRemoveDebug",
-        "onCommand:extension.vsKubernetesConfigureFromAcs"
+        "onCommand:extension.vsKubernetesConfigureFromAcs",
+        "onView:extension.vsKubernetesExplorer"
     ],
     "main": "./out/src/extension",
     "contributes": {
@@ -58,6 +59,14 @@
                     "description": "Image prefix for docker images ie 'docker.io/brendanburns'"
                 }
             }
+        },
+        "views": {
+            "explorer": [
+                {
+                    "id": "extension.vsKubernetesExplorer",
+                    "name": "Kubernetes"
+                }
+            ]
         },
         "commands": [{
             "command": "extension.vsKubernetesCreate",

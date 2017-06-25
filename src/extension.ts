@@ -23,6 +23,7 @@ import * as kuberesources from './kuberesources';
 import * as docker from './docker';
 import * as kubeconfig from './kubeconfig';
 import { create as kubectlCreate, Kubectl } from './kubectl';
+import * as explorer from './explorer';
 
 let explainActive = false;
 let swaggerSpecPromise = null;
@@ -62,7 +63,8 @@ export function activate(context) {
         vscode.languages.registerHoverProvider(
             { language: 'yaml', scheme: 'file' },
             { provideHover: provideHoverYaml }
-        )
+        ),
+        vscode.window.registerTreeDataProvider('extension.vsKubernetesExplorer', new explorer.KubernetesExplorer(kubectl, host))
     ];
 
     subscriptions.forEach((element) => {
