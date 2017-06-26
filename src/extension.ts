@@ -64,7 +64,7 @@ export function activate(context) {
             { language: 'yaml', scheme: 'file' },
             { provideHover: provideHoverYaml }
         ),
-        vscode.window.registerTreeDataProvider('extension.vsKubernetesExplorer', new explorer.KubernetesExplorer(kubectl, host))
+        vscode.window.registerTreeDataProvider('extension.vsKubernetesExplorer', explorer.create(kubectl, host))
     ];
 
     subscriptions.forEach((element) => {

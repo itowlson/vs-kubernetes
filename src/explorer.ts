@@ -3,12 +3,17 @@ import * as shell from './shell';
 import { Kubectl } from './kubectl';
 import { Host } from './host';
 
-export class KubernetesExplorer implements vscode.TreeDataProvider<KubernetesObject> {
+export function create(kubectl : Kubectl, host : Host) : vscode.TreeDataProvider<KubernetesObject> {
+    return new KubernetesExplorer(kubectl, host);
+}
+
+class KubernetesExplorer implements vscode.TreeDataProvider<KubernetesObject> {
 
     constructor(private readonly kubectl : Kubectl, private readonly host : Host) {}
 
     getTreeItem(element: KubernetesObject) : vscode.TreeItem | Thenable<vscode.TreeItem> {
-        return new vscode.TreeItem(element.id, element.isLeaf ? vscode.TreeItemCollapsibleState.None : vscode.TreeItemCollapsibleState.Collapsed);
+        const collapsibleState = isKind(element) ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None ;
+        return new vscode.TreeItem(element.id, collapsibleState);
     }
 
     getChildren(parent? : KubernetesObject) : vscode.ProviderResult<KubernetesObject[]> {
@@ -32,7 +37,7 @@ async function getChildren(parent : KubernetesObject, kubectl: Kubectl, host: Ho
         const childrenLines = await kubectl.asLines("get " + parent.kind.toLowerCase());
         if (shell.isShellResult(childrenLines)) {
             host.showErrorMessage(childrenLines.stderr);
-            return [ { id: "Error", isLeaf: true } ];
+            return [ { id: "Error" } ];
         }
         return childrenLines.map((l) => parse(l));
     }
@@ -41,12 +46,11 @@ async function getChildren(parent : KubernetesObject, kubectl: Kubectl, host: Ho
 
 function parse(kubeLine : string) : KubernetesObject {
     const bits = kubeLine.split(' ');
-    return { id: bits[0], isLeaf: true };
+    return { id: bits[0] };
 }
 
 interface KubernetesObject {
     readonly id : string;
-    readonly isLeaf : boolean;
 }
 
 class KubernetesKind implements KubernetesObject {
@@ -54,5 +58,4 @@ class KubernetesKind implements KubernetesObject {
     constructor(readonly kind: string) {
         this.id = kind;
     }
-    readonly isLeaf = false;
 }

@@ -25,6 +25,10 @@ export interface FakeShellSettings {
     execCallback?: (cmd : string) => ShellResult;
 }
 
+export interface FakeKubectlSettings {
+    asLines? : (cmd: string) => string[] | ShellResult;
+}
+
 export function host(settings : FakeHostSettings = {}) : any {
     return {
         showErrorMessage: (message : string, ...items : string[]) => {
@@ -65,11 +69,18 @@ export function shell(settings : FakeShellSettings = {}) : any {
 
 function fakeShellExec(settings : FakeShellSettings, cmd : string) : Promise<ShellResult> {
     const defRecognised = settings.recognisedCommands || [];
-    const matching = defRecognised.filter(c => c.command === cmd);
+    const matching = defRecognised.filter((c) => c.command === cmd);
     const result = (matching.length > 0) ?
         { code: matching[0].code, stdout: matching[0].stdout || '', stderr: matching[0].stderr || ''} :
         settings.execCallback ?
             settings.execCallback(cmd) :
             { code : 9876, stdout: '', stderr: 'command was not properly faked!'};
     return new Promise<ShellResult>((resolve, reject) => resolve(result));
+}
+
+export function kubectl(settings : FakeKubectlSettings = {}) : any {
+    const asLines = settings.asLines || ((s : string) => []);
+    return {
+        asLines: (cmd) => new Promise((resolve, reject) => resolve(asLines(cmd)))
+    }
 }
