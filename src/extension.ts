@@ -382,29 +382,37 @@ function getTextForActiveWindow(callback) {
     return;
 }
 
-function loadKubernetes() {
-    promptKindName(kuberesources.commonKinds, "load", { nameOptional: true }, (value) => {
-        kubectl.invoke(" -o json get " + value, (result, stdout, stderr) => {
-            if (result !== 0) {
-                vscode.window.showErrorMessage('Get command failed: ' + stderr);
-                return;
-            }
+function loadKubernetes(resourceId? : string) {
+    if (resourceId) {
+        loadKubernetesCore(resourceId);
+    } else {
+        promptKindName(kuberesources.commonKinds, "load", { nameOptional: true }, (value) => {
+            loadKubernetesCore(value);
+        });
+    }
+}
 
-            const filename = value.replace('/', '-');
-            const filepath = path.join(vscode.workspace.rootPath, filename + '.json');
+function loadKubernetesCore(value : string) {
+    kubectl.invoke(" -o json get " + value, (result, stdout, stderr) => {
+        if (result !== 0) {
+            vscode.window.showErrorMessage('Get command failed: ' + stderr);
+            return;
+        }
 
-            vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + filepath)).then((doc) => {
-                const start = new vscode.Position(0, 0),
-                    end = new vscode.Position(0, 0),
-                    range = new vscode.Range(start, end),
-                    edit = new vscode.TextEdit(range, stdout),
-                    wsEdit = new vscode.WorkspaceEdit();
+        const filename = value.replace('/', '-');
+        const filepath = path.join(vscode.workspace.rootPath, filename + '.json');
 
-                wsEdit.set(doc.uri, [edit]);
-                vscode.workspace.applyEdit(wsEdit);
-                vscode.window.showTextDocument(doc);
-            });
-        })
+        vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + filepath)).then((doc) => {
+            const start = new vscode.Position(0, 0),
+                end = new vscode.Position(0, 0),
+                range = new vscode.Range(start, end),
+                edit = new vscode.TextEdit(range, stdout),
+                wsEdit = new vscode.WorkspaceEdit();
+
+            wsEdit.set(doc.uri, [edit]);
+            vscode.workspace.applyEdit(wsEdit);
+            vscode.window.showTextDocument(doc);
+        });
     });
 }
 
