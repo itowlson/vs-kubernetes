@@ -3,20 +3,50 @@
 import * as vscode from 'vscode';
 import * as shelljs from 'shelljs';
 
-export function isWindows() : boolean {
-    return (process.platform === 'win32');
+export interface Shell {
+    isWindows() : boolean;
+    isUnix() : boolean;
+    home() : string;
+    combinePath(basePath : string, relativePath : string);
+    execOpts() : any;
+    exec(cmd : string) : Promise<ShellResult>;
+    execCore(cmd : string, opts : any) : Promise<ShellResult>;
 }
 
-export function isUnix() : boolean {
+export const shell : Shell = {
+    isWindows : isWindows,
+    isUnix : isUnix,
+    home : home,
+    combinePath : combinePath,
+    execOpts : execOpts,
+    exec : exec,
+    execCore : execCore
+};
+
+const WINDOWS : string = 'win32';
+
+export interface ShellResult {
+    readonly code : number;
+    readonly stdout : string;
+    readonly stderr : string
+};
+
+export type ShellHandler = (code : number, stdout : string, stderr : string) => void;
+
+function isWindows() : boolean {
+    return (process.platform === WINDOWS);
+}
+
+function isUnix() : boolean {
     return !isWindows();
 }
 
-export function home() {
+function home() : string {
     const homeVar = isWindows() ? 'USERPROFILE' : 'HOME';
     return process.env[homeVar];
 }
 
-export function combinePath(basePath, relativePath : string) {
+function combinePath(basePath : string, relativePath : string) {
     let separator = '/';
     if (isWindows()) {
         relativePath = relativePath.replace(/\//g, '\\');
@@ -25,7 +55,7 @@ export function combinePath(basePath, relativePath : string) {
     return basePath + separator + relativePath;
 }
 
-export function execOpts() {
+function execOpts() : any {
     let env = process.env;
     if (isWindows()) {
         env = Object.assign({ }, env, { HOME: home() });
@@ -38,14 +68,16 @@ export function execOpts() {
     return opts;
 }
 
-export function exec(cmd, handler) {
+async function exec(cmd : string) : Promise<ShellResult> {
     try {
-        execCore(cmd, execOpts(), handler);
+        return await execCore(cmd, execOpts());
     } catch (ex) {
         vscode.window.showErrorMessage(ex);
     }
 }
 
-export function execCore(cmd, opts, handler) {
-    shelljs.exec(cmd, opts, handler);
+function execCore(cmd : string, opts : any) : Promise<ShellResult> {
+    return new Promise<ShellResult>((resolve, reject) => {
+        shelljs.exec(cmd, opts, (code, stdout, stderr) => resolve({code : code, stdout : stdout, stderr : stderr}));
+    });
 }

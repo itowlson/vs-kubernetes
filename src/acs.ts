@@ -1,13 +1,14 @@
 'use strict';
 
-import * as vscode from 'vscode';
-import * as shell from './shell';
-import * as fs from 'fs';
+import { QuickPickItem } from 'vscode';
+import { host } from './host';
+import { shell } from './shell';
+import { fs } from './fs';
 
 export function verifyPrerequisites(onSatisfied, onFailure) {
     const errors = new Array<String>();
 
-    shell.exec('az --help', (code, stdout, stderr) => {
+    shell.exec('az --help').then(({code, stdout, stderr}) => {
         if (code != 0 || stderr) {
             errors.push('Azure CLI 2.0 not found - install Azure CLI 2.0 and log in');
         }
@@ -30,7 +31,7 @@ function prereqCheckSSHKeys(errors: Array<String>) {
 }
 
 export function selectSubscription(onSelection, onNone, onError) {
-    shell.exec("az account list --query [*].name -ojson", (code, stdout, stderr) => {
+    shell.exec("az account list --all --query [*].name -ojson").then(({code, stdout, stderr}) => {
         if (code === 0 && !stderr) {  // az account list returns exit code 0 even if not logged in
             const accountNames = JSON.parse(stdout);
             switch (accountNames.length) {
@@ -45,17 +46,17 @@ export function selectSubscription(onSelection, onNone, onError) {
                     // user has just logged in then it will be set to the first
                     // one in the list.  As configuration is an infrequent operation,
                     // it's better to ask and be sure.
-                    vscode.window.showQuickPick(accountNames, { placeHolder: "Select Azure subscription" }).then((subName) => {
+                    host.showQuickPick(accountNames, { placeHolder: "Select Azure subscription" }).then((subName) => {
                         if (!subName) {
                             return;
                         }
 
-                        vscode.window.showWarningMessage('This will select ' + subName + ' for all Azure CLI operations.', 'OK').then((choice) => {
+                        host.showWarningMessage('This will select ' + subName + ' for all Azure CLI operations.', 'OK').then((choice) => {
                             if (choice !== 'OK') {
                                 return;
                             }
 
-                            shell.exec('az account set --subscription "' + subName + '"', (code, stdout, stderr) => {
+                            shell.exec('az account set --subscription "' + subName + '"').then(({code, stdout, stderr}) => {
                                 if (code === 0 && !stderr) {
                                     onSelection(subName);
                                 } else {
@@ -77,7 +78,7 @@ export function selectKubernetesClustersFromActiveSubscription(onSelection, onNo
     if (shell.isUnix()) {
         query = `'${query}'`;
     }
-    shell.exec(`az acs list --query ${query} -ojson`, (code, stdout, stderr) => {
+    shell.exec(`az acs list --query ${query} -ojson`).then(({code, stdout, stderr}) => {
         if (code === 0 && !stderr) {
             const clusters: Cluster[] = JSON.parse(stdout);
             switch (clusters.length) {
@@ -85,7 +86,7 @@ export function selectKubernetesClustersFromActiveSubscription(onSelection, onNo
                     onNone();
                     break;
                 case 1:
-                    vscode.window.showInformationMessage(`This will configure Kubernetes to use cluster ${clusters[0].name}`, "OK").then((choice) => {
+                    host.showInformationMessage(`This will configure Kubernetes to use cluster ${clusters[0].name}`, "OK").then((choice) => {
                         if (choice == 'OK') {
                             onSelection(clusters[0]);
                         }
@@ -93,7 +94,7 @@ export function selectKubernetesClustersFromActiveSubscription(onSelection, onNo
                     break;
                 default:
                     let items = clusters.map((cluster) => clusterQuickPick(cluster));
-                    vscode.window.showQuickPick(items, { placeHolder: "Select Kubernetes cluster" }).then((item) => {
+                    host.showQuickPick(items, { placeHolder: "Select Kubernetes cluster" }).then((item) => {
                         if (item) {
                             onSelection(item.cluster);
                         }
@@ -126,7 +127,7 @@ export function installCli(onInstall, onError) {
         installFile = installDir + '/kubectl';
         cmd = `mkdir -p "${installDir}" ; ${cmdCore} --install-location="${installFile}"`;
     }
-    shell.exec(cmd, (code, stdout, stderr) => {
+    shell.exec(cmd).then(({code, stdout, stderr}) => {
         if (code === 0) {
             const onDefaultPath = !isWindows;
             onInstall(installFile, onDefaultPath);
@@ -138,7 +139,7 @@ export function installCli(onInstall, onError) {
 
 export function getCredentials(cluster: Cluster, onSuccess, onError) {
     const cmd = 'az acs kubernetes get-credentials -n ' + cluster.name + ' -g ' + cluster.resourceGroup;
-    shell.exec(cmd, (code, stdout, stderr) => {
+    shell.exec(cmd).then(({code, stdout, stderr}) => {
         if (code === 0 && !stderr) {
             onSuccess();
         } else {
@@ -157,7 +158,7 @@ interface Cluster {
     readonly resourceGroup: string;
 }
 
-class ClusterQuickPick implements vscode.QuickPickItem {
+class ClusterQuickPick implements QuickPickItem {
     constructor(readonly cluster: Cluster) {
     }
 
