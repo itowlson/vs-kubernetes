@@ -887,7 +887,7 @@ function execKubernetesCore(isTerminal) {
 
 function execTerminalOnPod(podName : string, terminalCmd : string) {
     const terminalExecCmd : string[] = ['exec', '-it', podName, terminalCmd];
-    const term = vscode.window.createTerminal('exec', kubectl.path(), terminalExecCmd);
+    const term = vscode.window.createTerminal(`${terminalCmd} on ${podName}`, kubectl.path(), terminalExecCmd);
     term.show();
 }
 
