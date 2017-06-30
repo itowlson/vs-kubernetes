@@ -69,6 +69,13 @@
             ]
         },
         "menus": {
+            "view/title": [
+                {
+                    "command" : "extension.vsKubernetesRefreshExplorer",
+                    "when": "view == extension.vsKubernetesExplorer",
+                    "group": "navigation"
+                }
+            ],
             "view/item/context": [
                 {
                     "command": "extension.vsKubernetesLoad",
@@ -83,6 +90,12 @@
                     "command": "extension.vsKubernetesTerminal",
                     "group": "1",
                     "when": "view == extension.vsKubernetesExplorer && viewItem == vsKubernetes.resource.pods"
+                }
+            ],
+            "commandPalette": [
+                {
+                    "command" : "extension.vsKubernetesRefreshExplorer",
+                    "when": "view == extension.vsKubernetesExplorer"
                 }
             ]
         },
@@ -140,6 +153,9 @@
         }, {
             "command": "extension.vsKubernetesConfigureFromAcs",
             "title": "Kubernetes Configure from ACS"
+        }, {
+            "command": "extension.vsKubernetesRefreshExplorer",
+            "title": "Refresh"
         }]
     },
     "scripts": {

@@ -3,7 +3,7 @@ import * as shell from './shell';
 import { Kubectl } from './kubectl';
 import { Host } from './host';
 
-export function create(kubectl : Kubectl, host : Host) : vscode.TreeDataProvider<KubernetesObject> {
+export function create(kubectl : Kubectl, host : Host) : KubernetesExplorer {
     return new KubernetesExplorer(kubectl, host);
 }
 
@@ -12,7 +12,9 @@ export interface ResourceNode {
     readonly resourceId : string;
 }
 
-class KubernetesExplorer implements vscode.TreeDataProvider<KubernetesObject> {
+export class KubernetesExplorer implements vscode.TreeDataProvider<KubernetesObject> {
+	private _onDidChangeTreeData: vscode.EventEmitter<KubernetesObject | undefined> = new vscode.EventEmitter<KubernetesObject | undefined>();
+	readonly onDidChangeTreeData: vscode.Event<KubernetesObject | undefined> = this._onDidChangeTreeData.event;
 
     constructor(private readonly kubectl : Kubectl, private readonly host : Host) {}
 
@@ -43,6 +45,11 @@ class KubernetesExplorer implements vscode.TreeDataProvider<KubernetesObject> {
             new KubernetesKind("Pods")
         ];
     }
+
+    refresh(): void {
+        this._onDidChangeTreeData.fire();
+    }
+
 }
 
 function isKind(obj: KubernetesObject) : obj is KubernetesKind {

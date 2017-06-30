@@ -35,6 +35,8 @@ const kubectl = kubectlCreate(host, fs, shell);
 export function activate(context) {
     kubectl.checkPresent('activation');
 
+    const treeProvider = explorer.create(kubectl, host);
+
     const subscriptions = [
         vscode.commands.registerCommand('extension.vsKubernetesCreate',
             maybeRunKubernetesCommandForActiveWindow.bind(this, 'create -f')
@@ -56,6 +58,7 @@ export function activate(context) {
         vscode.commands.registerCommand('extension.vsKubernetesDebug', debugKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesRemoveDebug', removeDebugKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesConfigureFromAcs', configureFromAcsKubernetes),
+        vscode.commands.registerCommand('extension.vsKubernetesRefreshExplorer', () => treeProvider.refresh()),
         vscode.languages.registerHoverProvider(
             { language: 'json', scheme: 'file' },
             { provideHover: provideHoverJson }
@@ -64,7 +67,7 @@ export function activate(context) {
             { language: 'yaml', scheme: 'file' },
             { provideHover: provideHoverYaml }
         ),
-        vscode.window.registerTreeDataProvider('extension.vsKubernetesExplorer', explorer.create(kubectl, host))
+        vscode.window.registerTreeDataProvider('extension.vsKubernetesExplorer', treeProvider)
     ];
 
     subscriptions.forEach((element) => {
