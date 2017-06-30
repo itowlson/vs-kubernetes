@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as shell from './shell';
 import { Kubectl } from './kubectl';
 import { Host } from './host';
+import * as kuberesources from './kuberesources';
 
 export function create(kubectl : Kubectl, host : Host) : KubernetesExplorer {
     return new KubernetesExplorer(kubectl, host);
@@ -20,7 +21,8 @@ export class KubernetesExplorer implements vscode.TreeDataProvider<KubernetesObj
 
     getTreeItem(element: KubernetesObject) : vscode.TreeItem | Thenable<vscode.TreeItem> {
         const collapsibleState = isKind(element) ? vscode.TreeItemCollapsibleState.Collapsed: vscode.TreeItemCollapsibleState.None;
-        let treeItem = new vscode.TreeItem(element.id, collapsibleState);
+        const label = isKind(element) ? element.kind.pluralDisplayName : element.id;
+        let treeItem = new vscode.TreeItem(label, collapsibleState);
         if (isResource(element)) {
             treeItem.command = {
                 command: "extension.vsKubernetesLoad",
@@ -28,8 +30,8 @@ export class KubernetesExplorer implements vscode.TreeDataProvider<KubernetesObj
                 arguments: [ element ]
             };
             treeItem.contextValue = "vsKubernetes.resource";
-            if (element.resourceId.startsWith('pods')) {
-                treeItem.contextValue = "vsKubernetes.resource.pods";
+            if (element.resourceId.startsWith('pod')) {
+                treeItem.contextValue = "vsKubernetes.resource.pod";
             }
         }
         return treeItem;
@@ -39,11 +41,7 @@ export class KubernetesExplorer implements vscode.TreeDataProvider<KubernetesObj
         if (parent) {
             return getChildren(parent, this.kubectl, this.host);
         }
-        return [
-            new KubernetesKind("Deployments"),
-            new KubernetesKind("Jobs"),
-            new KubernetesKind("Pods")
-        ];
+        return kuberesources.commonKinds.map((k) => new KubernetesKind(k));
     }
 
     refresh(): void {
@@ -62,7 +60,7 @@ function isResource(obj: KubernetesObject) : obj is KubernetesResource {
 
 async function getChildren(parent : KubernetesObject, kubectl: Kubectl, host: Host) : Promise<KubernetesObject[]> {
     if (isKind(parent)) {
-        const childrenLines = await kubectl.asLines("get " + parent.kind.toLowerCase());
+        const childrenLines = await kubectl.asLines("get " + parent.kind.abbreviation);
         if (shell.isShellResult(childrenLines)) {
             host.showErrorMessage(childrenLines.stderr);
             return [ { id: "Error" } ];
@@ -72,7 +70,7 @@ async function getChildren(parent : KubernetesObject, kubectl: Kubectl, host: Ho
     return [];
 }
 
-function parse(kind : string, kubeLine : string) : KubernetesObject {
+function parse(kind : kuberesources.ResourceKind, kubeLine : string) : KubernetesObject {
     const bits = kubeLine.split(' ');
     return new KubernetesResource(kind, bits[0]);
 }
@@ -83,14 +81,14 @@ interface KubernetesObject {
 
 class KubernetesKind implements KubernetesObject {
     readonly id: string;
-    constructor(readonly kind: string) {
-        this.id = kind;
+    constructor(readonly kind: kuberesources.ResourceKind) {
+        this.id = kind.abbreviation;
     }
 }
 
 class KubernetesResource implements KubernetesObject, ResourceNode {
     readonly resourceId: string;
-    constructor(kind: string, readonly id: string) {
-        this.resourceId = kind.toLowerCase() + '/' + id;
+    constructor(kind: kuberesources.ResourceKind, readonly id: string) {
+        this.resourceId = kind.abbreviation + '/' + id;
     }
 }

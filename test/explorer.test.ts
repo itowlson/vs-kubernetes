@@ -8,6 +8,7 @@ import { Host } from '../src/host';
 import { Shell, ShellResult } from '../src/shell';
 import { FS } from '../src/fs';
 import { create as explorerCreate } from '../src/explorer';
+import * as kuberesources from '../src/kuberesources';
 
 interface FakeContext {
     host? : any;
@@ -30,7 +31,7 @@ suite("Explorer tests", () => {
             test("...it returns a set of Kubernetes object kinds", async () => {
                 const explorer = explorerCreateWithFakes({});
                 const roots = await explorer.getChildren(undefined);
-                assert.equal(roots.length, 3);
+                assert.equal(roots.length, 4);
                 for (const obj of roots) {
                     assert.notEqual(undefined, obj['kind']);
                 }
@@ -44,16 +45,16 @@ suite("Explorer tests", () => {
                 const explorer = explorerCreateWithFakes({
                     kubectl: fakes.kubectl({ asLines: (c) => { command = c; return ["a"]; } })
                 });
-                const parent : any = { id: 'Pods', kind: 'Pods'};
+                const parent : any = { id: 'Pods', kind: kuberesources.allKinds.pod};
                 const nodes = await explorer.getChildren(parent);
-                assert.equal(command, "get pods");
+                assert.equal(command, "get pod");
             });
 
             test("...and kubectl succeeds, it returns an object per output row", async () => {
                 const explorer = explorerCreateWithFakes({
                     kubectl: fakes.kubectl({ asLines: (_) => ["a b c", "d e f"]})
                 });
-                const parent : any = { id: 'Pods', kind: 'Pods'};
+                const parent : any = { id: 'Pods', kind: kuberesources.allKinds.pod};
                 const nodes = await explorer.getChildren(parent);
                 assert.equal(nodes.length, 2);
             });
@@ -62,7 +63,7 @@ suite("Explorer tests", () => {
                 const explorer = explorerCreateWithFakes({
                     kubectl: fakes.kubectl({ asLines: (_) => ["a b c", "d e f"]})
                 });
-                const parent : any = { id: 'Pods', kind: 'Pods'};
+                const parent : any = { id: 'Pods', kind: kuberesources.allKinds.pod};
                 const nodes = await explorer.getChildren(parent);
                 assert.equal(nodes[0].id, 'a');
                 assert.equal(nodes[1].id, 'd');
@@ -72,7 +73,7 @@ suite("Explorer tests", () => {
                 const explorer = explorerCreateWithFakes({
                     kubectl: fakes.kubectl({ asLines: (_) => { return { code: 1, stdout: "", stderr: "Oh no!"}; } })
                 });
-                const parent : any = { id: 'Pods', kind: 'Pods'};
+                const parent : any = { id: 'Pods', kind: kuberesources.allKinds.pod};
                 const nodes = await explorer.getChildren(parent);
                 assert.equal(nodes.length, 1);
                 assert.equal(nodes[0].id, "Error");
@@ -84,7 +85,7 @@ suite("Explorer tests", () => {
                     kubectl: fakes.kubectl({ asLines: (_) => { return { code: 1, stdout: "", stderr: "Oh no!"}; } }),
                     host: fakes.host({errors: errors})
                 });
-                const parent : any = { id: 'Pods', kind: 'Pods'};
+                const parent : any = { id: 'Pods', kind: kuberesources.allKinds.pod};
                 const nodes = await explorer.getChildren(parent);
                 assert.equal(errors.length, 1);
                 assert.equal(errors[0], "Oh no!");
@@ -104,16 +105,16 @@ suite("Explorer tests", () => {
 
             test("...it is expandable", async () => {
                 const explorer = explorerCreateWithFakes({});
-                const obj : any = { id: 'Pods', kind: 'Pods'};
+                const obj : any = { id: 'Pods', kind: kuberesources.allKinds.pod};
                 const treeItem = await explorer.getTreeItem(obj);
                 assert.equal(treeItem.collapsibleState, vscode.TreeItemCollapsibleState.Collapsed);
             });
 
-            test("...its label is the ID", async () => {
+            test("...its label is the kind plural name", async () => {
                 const explorer = explorerCreateWithFakes({});
-                const obj : any = { id: 'Pods', kind: "Purple People-Eatin' Pods"};
+                const obj : any = { id: 'Pods', kind: kuberesources.allKinds.deployment};
                 const treeItem = await explorer.getTreeItem(obj);
-                assert.equal(treeItem.label, 'Pods');
+                assert.equal(treeItem.label, 'Deployments');
             });
         });
 

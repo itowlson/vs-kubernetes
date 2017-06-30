@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 
 export class ResourceKind implements vscode.QuickPickItem {
-    constructor (readonly displayName : string, readonly abbreviation : string) {
+    constructor (readonly displayName : string, readonly pluralDisplayName : string, readonly abbreviation : string) {
     }
 
     get label() { return this.displayName; }
@@ -9,12 +9,12 @@ export class ResourceKind implements vscode.QuickPickItem {
 }
 
 export const allKinds = {
-    deployment: new ResourceKind("Deployment", "deployment"),
-    replicaSet: new ResourceKind("ReplicaSet", "rs"),
-    replicationController: new ResourceKind("Replication Controller", "rc"),
-    job: new ResourceKind("Job", "job"),
-    pod: new ResourceKind("Pod", "pod"),
-    service: new ResourceKind("Service", "service"),
+    deployment: new ResourceKind("Deployment", "Deployments", "deployment"),
+    replicaSet: new ResourceKind("ReplicaSet", "ReplicaSets", "rs"),
+    replicationController: new ResourceKind("Replication Controller", "Replication Controllers", "rc"),
+    job: new ResourceKind("Job", "Jobs", "job"),
+    pod: new ResourceKind("Pod", "Pods", "pod"),
+    service: new ResourceKind("Service", "Services", "service"),
 }
 
 export const commonKinds = [
