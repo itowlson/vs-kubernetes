@@ -8,6 +8,7 @@ export function create(kubectl : Kubectl, host : Host) : vscode.TreeDataProvider
 }
 
 export interface ResourceNode {
+    readonly id : string;
     readonly resourceId : string;
 }
 
@@ -25,6 +26,9 @@ class KubernetesExplorer implements vscode.TreeDataProvider<KubernetesObject> {
                 arguments: [ element ]
             };
             treeItem.contextValue = "vsKubernetes.resource";
+            if (element.resourceId.startsWith('pods')) {
+                treeItem.contextValue = "vsKubernetes.resource.pods";
+            }
         }
         return treeItem;
     }

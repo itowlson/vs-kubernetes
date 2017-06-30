@@ -846,8 +846,12 @@ function execKubernetes() {
     execKubernetesCore(false);
 }
 
-function terminalKubernetes() {
-    execKubernetesCore(true);
+function terminalKubernetes(explorerNode? : explorer.ResourceNode) {
+    if (explorerNode) {
+        execTerminalOnPod(explorerNode.id, 'bash');
+    } else {
+        execKubernetesCore(true);
+    }
 }
 
 function execKubernetesCore(isTerminal) {
@@ -870,9 +874,7 @@ function execKubernetesCore(isTerminal) {
             }
 
             if (isTerminal) {
-                const terminalExecCmd : string[] = ['exec', '-it', pod.metadata.name, cmd];
-                const term = vscode.window.createTerminal('exec', kubectl.path(), terminalExecCmd);
-                term.show();
+                execTerminalOnPod(pod.metadata.name, cmd);
                 return;
             }
 
@@ -881,6 +883,12 @@ function execKubernetesCore(isTerminal) {
             kubectl.invoke(execCmd, fn);
         });
     });
+}
+
+function execTerminalOnPod(podName : string, terminalCmd : string) {
+    const terminalExecCmd : string[] = ['exec', '-it', podName, terminalCmd];
+    const term = vscode.window.createTerminal('exec', kubectl.path(), terminalExecCmd);
+    term.show();
 }
 
 function syncKubernetes() {
