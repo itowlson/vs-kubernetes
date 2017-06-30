@@ -382,9 +382,9 @@ function getTextForActiveWindow(callback) {
     return;
 }
 
-function loadKubernetes(resourceId? : string) {
-    if (resourceId) {
-        loadKubernetesCore(resourceId);
+function loadKubernetes(explorerNode? : explorer.ResourceNode) {
+    if (explorerNode) {
+        loadKubernetesCore(explorerNode.resourceId);
     } else {
         promptKindName(kuberesources.commonKinds, "load", { nameOptional: true }, (value) => {
             loadKubernetesCore(value);

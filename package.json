@@ -68,6 +68,14 @@
                 }
             ]
         },
+        "menus": {
+            "view/item/context": [
+                {
+                    "command": "extension.vsKubernetesLoad",
+                    "when": "view == extension.vsKubernetesExplorer && viewItem == vsKubernetes.resource"
+                }
+            ]
+        },
         "commands": [{
             "command": "extension.vsKubernetesCreate",
             "title": "Kubernetes Create"

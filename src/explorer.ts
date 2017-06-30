@@ -7,6 +7,10 @@ export function create(kubectl : Kubectl, host : Host) : vscode.TreeDataProvider
     return new KubernetesExplorer(kubectl, host);
 }
 
+export interface ResourceNode {
+    readonly resourceId : string;
+}
+
 class KubernetesExplorer implements vscode.TreeDataProvider<KubernetesObject> {
 
     constructor(private readonly kubectl : Kubectl, private readonly host : Host) {}
@@ -18,8 +22,9 @@ class KubernetesExplorer implements vscode.TreeDataProvider<KubernetesObject> {
             treeItem.command = {
                 command: "extension.vsKubernetesLoad",
                 title: "Load",
-                arguments: [ element.resourceId ]
+                arguments: [ element ]
             };
+            treeItem.contextValue = "vsKubernetes.resource";
         }
         return treeItem;
     }
@@ -72,7 +77,7 @@ class KubernetesKind implements KubernetesObject {
     }
 }
 
-class KubernetesResource implements KubernetesObject {
+class KubernetesResource implements KubernetesObject, ResourceNode {
     readonly resourceId: string;
     constructor(kind: string, readonly id: string) {
         this.resourceId = kind.toLowerCase() + '/' + id;
