@@ -686,14 +686,6 @@ function parseName(line) {
     return line.split(' ')[0];
 }
 
-function curry(fn, arg) {
-    return () => {
-        let args = Array.prototype.slice.call(arguments, 0);
-        args.push(arg);
-        return fn.apply(null, args);
-    }
-}
-
 function findPod(callback) {
     let editor = vscode.window.activeTextEditor;
     if (!editor) {
@@ -762,8 +754,12 @@ function selectPodForApp(callback) {
     });
 }
 
-function logsKubernetes() {
-    findPod(getLogs);
+function logsKubernetes(explorerNode? : explorer.ResourceNode) {
+    if (explorerNode) {
+        getLogsCore(explorerNode.id);  // TODO: we don't know if there is a namespace in this case - is that a problem?
+    } else {
+        findPod(getLogs);
+    }
 }
 
 function getLogs(pod) {
@@ -771,14 +767,22 @@ function getLogs(pod) {
         vscode.window.showErrorMessage('Can\'t find a pod!');
         return;
     }
-    // TODO: Support multiple containers here!
+    getLogsCore(pod.name, pod.namespace);
 
-    let cmd = ' logs ' + pod.name;
-    if (pod.namespace && pod.namespace.length > 0) {
-        cmd += ' --namespace=' + pod.namespace;
+}
+
+function getLogsCore(podName : string, podNamespace? : string) {
+    // TODO: Support multiple containers here!
+    let cmd = ' logs ' + podName;
+    if (podNamespace && podNamespace.length > 0) {
+        cmd += ' --namespace=' + podNamespace;
     }
-    let fn = curry(kubectlOutput, pod.name + '-output');
+    const fn = kubectlOutputTo(podName + '-output');
     kubectl.invoke(cmd, fn);
+}
+
+function kubectlOutputTo(name : string) {
+    return (code, stdout, stderr) => kubectlOutput(code, stdout, stderr, name);
 }
 
 function kubectlOutput(result, stdout, stderr, name) {
@@ -812,7 +816,7 @@ function getPorts() {
 
 function describeKubernetes() {
     findKindNameOrPrompt(kuberesources.commonKinds, 'describe', { nameOptional: true }, (value) => {
-        const fn = curry(kubectlOutput, value + "-describe");
+        const fn = kubectlOutputTo(value + "-describe");
         kubectl.invoke(' describe ' + value, fn);
     });
 }
@@ -882,7 +886,7 @@ function execKubernetesCore(isTerminal) {
             }
 
             const execCmd = ' exec ' + pod.metadata.name + ' ' + cmd;
-            let fn = curry(kubectlOutput, pod.metadata.name + '-exec')
+            const fn = kubectlOutputTo(pod.metadata.name + '-exec');
             kubectl.invoke(execCmd, fn);
         });
     });
