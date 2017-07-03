@@ -814,11 +814,19 @@ function getPorts() {
     }
 }
 
-function describeKubernetes() {
-    findKindNameOrPrompt(kuberesources.commonKinds, 'describe', { nameOptional: true }, (value) => {
-        const fn = kubectlOutputTo(value + "-describe");
-        kubectl.invoke(' describe ' + value, fn);
-    });
+function describeKubernetes(explorerNode? : explorer.ResourceNode) {
+    if (explorerNode) {
+        describeKubernetesCore(explorerNode.resourceId);
+    } else {
+        findKindNameOrPrompt(kuberesources.commonKinds, 'describe', { nameOptional: true }, (value) => {
+            describeKubernetesCore(value);
+        });
+    }
+}
+
+function describeKubernetesCore(kindName : string) {
+    const fn = kubectlOutputTo(kindName + "-describe");
+    kubectl.invoke(' describe ' + kindName, fn);
 }
 
 function selectContainerForPod(pod, callback) {

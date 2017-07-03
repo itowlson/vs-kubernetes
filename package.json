@@ -79,6 +79,12 @@
             "view/item/context": [
                 {
                     "command": "extension.vsKubernetesLoad",
+                    "group": "0",
+                    "when": "view == extension.vsKubernetesExplorer && viewItem == vsKubernetes.resource"
+                },
+                {
+                    "command": "extension.vsKubernetesDescribe",
+                    "group": "2",
                     "when": "view == extension.vsKubernetesExplorer && viewItem == vsKubernetes.resource"
                 },
                 {
@@ -89,6 +95,11 @@
                 {
                     "command": "extension.vsKubernetesTerminal",
                     "group": "1",
+                    "when": "view == extension.vsKubernetesExplorer && viewItem == vsKubernetes.resource.pod"
+                },
+                {
+                    "command": "extension.vsKubernetesDescribe",
+                    "group": "2",
                     "when": "view == extension.vsKubernetesExplorer && viewItem == vsKubernetes.resource.pod"
                 },
                 {
