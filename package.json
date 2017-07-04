@@ -5,7 +5,7 @@
     "version": "0.0.8",
     "publisher": "brendandburns",
     "engines": {
-        "vscode": "^1.6.0"
+        "vscode": "^1.13.0"
     },
     "categories": [
         "Other"
@@ -28,7 +28,8 @@
         "onCommand:extension.vsKubernetesScale",
         "onCommand:extension.vsKubernetesDebug",
         "onCommand:extension.vsKubernetesRemoveDebug",
-        "onCommand:extension.vsKubernetesConfigureFromAcs"
+        "onCommand:extension.vsKubernetesConfigureFromAcs",
+        "onView:extension.vsKubernetesExplorer"
     ],
     "main": "./out/src/extension",
     "contributes": {
@@ -58,6 +59,61 @@
                     "description": "Image prefix for docker images ie 'docker.io/brendanburns'"
                 }
             }
+        },
+        "views": {
+            "explorer": [
+                {
+                    "id": "extension.vsKubernetesExplorer",
+                    "name": "Kubernetes"
+                }
+            ]
+        },
+        "menus": {
+            "view/title": [
+                {
+                    "command" : "extension.vsKubernetesRefreshExplorer",
+                    "when": "view == extension.vsKubernetesExplorer",
+                    "group": "navigation"
+                }
+            ],
+            "view/item/context": [
+                {
+                    "command": "extension.vsKubernetesLoad",
+                    "group": "0",
+                    "when": "view == extension.vsKubernetesExplorer && viewItem == vsKubernetes.resource"
+                },
+                {
+                    "command": "extension.vsKubernetesDescribe",
+                    "group": "2",
+                    "when": "view == extension.vsKubernetesExplorer && viewItem == vsKubernetes.resource"
+                },
+                {
+                    "command": "extension.vsKubernetesLoad",
+                    "group": "0",
+                    "when": "view == extension.vsKubernetesExplorer && viewItem == vsKubernetes.resource.pod"
+                },
+                {
+                    "command": "extension.vsKubernetesTerminal",
+                    "group": "1",
+                    "when": "view == extension.vsKubernetesExplorer && viewItem == vsKubernetes.resource.pod"
+                },
+                {
+                    "command": "extension.vsKubernetesDescribe",
+                    "group": "2",
+                    "when": "view == extension.vsKubernetesExplorer && viewItem == vsKubernetes.resource.pod"
+                },
+                {
+                    "command": "extension.vsKubernetesLogs",
+                    "group": "2",
+                    "when": "view == extension.vsKubernetesExplorer && viewItem == vsKubernetes.resource.pod"
+                }
+            ],
+            "commandPalette": [
+                {
+                    "command" : "extension.vsKubernetesRefreshExplorer",
+                    "when": "view == extension.vsKubernetesExplorer"
+                }
+            ]
         },
         "commands": [{
             "command": "extension.vsKubernetesCreate",
@@ -113,6 +169,9 @@
         }, {
             "command": "extension.vsKubernetesConfigureFromAcs",
             "title": "Kubernetes Configure from ACS"
+        }, {
+            "command": "extension.vsKubernetesRefreshExplorer",
+            "title": "Refresh"
         }]
     },
     "scripts": {

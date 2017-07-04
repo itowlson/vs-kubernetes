@@ -1,10 +1,11 @@
 import { Host } from './host';
 import { FS } from './fs';
-import { Shell, ShellHandler } from './shell';
+import { Shell, ShellHandler, ShellResult } from './shell';
 
 export interface Kubectl {
     checkPresent(errorMessageMode : CheckPresentMessageMode, onSuccess? : () => void) : Promise<void>;
     invoke(command : string, handler? : ShellHandler) : Promise<void>;
+    asLines(command : string): Promise<string[] | ShellResult>;
     path() : string;
 }
 
@@ -27,6 +28,9 @@ class KubectlImpl implements Kubectl {
     }
     invoke(command : string, handler? : ShellHandler) : Promise<void> {
         return invoke(this.context, command, handler);
+    }
+    asLines(command : string) : Promise<string[] | ShellResult> {
+        return asLines(this.context, command);
     }
     path() : string {
         return path(this.context);
@@ -111,6 +115,12 @@ async function invoke(context : Context, command : string, handler? : ShellHandl
     await kubectlInternal(context, command, handler || kubectlDone(context));
 }
 
+async function invokeAsync(context : Context, command : string, handler? : ShellHandler) : Promise<ShellResult> {
+    const bin = baseKubectlPath(context);
+    let cmd = bin + ' ' + command
+    return await context.shell.exec(cmd);
+}
+
 async function kubectlInternal(context : Context, command : string, handler : ShellHandler) : Promise<void> {
     await checkPresent(context, 'command', () => {
         const bin = baseKubectlPath(context);
@@ -137,6 +147,18 @@ function baseKubectlPath(context : Context) : string {
         bin = 'kubectl';
     }
     return bin;
+}
+
+async function asLines(context : Context, command : string) : Promise<string[] | ShellResult> {
+    const shellResult = await invokeAsync(context, command);
+    if (shellResult.code === 0) {
+        let lines = shellResult.stdout.split('\n');
+        lines.shift();
+        lines = lines.filter((l) => l.length > 0);
+        return lines;
+
+    }
+    return shellResult;
 }
 
 function path(context : Context) : string {

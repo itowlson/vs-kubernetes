@@ -23,6 +23,7 @@ import * as kuberesources from './kuberesources';
 import * as docker from './docker';
 import * as kubeconfig from './kubeconfig';
 import { create as kubectlCreate, Kubectl } from './kubectl';
+import * as explorer from './explorer';
 
 let explainActive = false;
 let swaggerSpecPromise = null;
@@ -33,6 +34,8 @@ const kubectl = kubectlCreate(host, fs, shell);
 // your extension is activated the very first time the command is executed
 export function activate(context) {
     kubectl.checkPresent('activation');
+
+    const treeProvider = explorer.create(kubectl, host);
 
     const subscriptions = [
         vscode.commands.registerCommand('extension.vsKubernetesCreate',
@@ -55,6 +58,7 @@ export function activate(context) {
         vscode.commands.registerCommand('extension.vsKubernetesDebug', debugKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesRemoveDebug', removeDebugKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesConfigureFromAcs', configureFromAcsKubernetes),
+        vscode.commands.registerCommand('extension.vsKubernetesRefreshExplorer', () => treeProvider.refresh()),
         vscode.languages.registerHoverProvider(
             { language: 'json', scheme: 'file' },
             { provideHover: provideHoverJson }
@@ -62,7 +66,8 @@ export function activate(context) {
         vscode.languages.registerHoverProvider(
             { language: 'yaml', scheme: 'file' },
             { provideHover: provideHoverYaml }
-        )
+        ),
+        vscode.window.registerTreeDataProvider('extension.vsKubernetesExplorer', treeProvider)
     ];
 
     subscriptions.forEach((element) => {
@@ -380,29 +385,37 @@ function getTextForActiveWindow(callback) {
     return;
 }
 
-function loadKubernetes() {
-    promptKindName(kuberesources.commonKinds, "load", { nameOptional: true }, (value) => {
-        kubectl.invoke(" -o json get " + value, (result, stdout, stderr) => {
-            if (result !== 0) {
-                vscode.window.showErrorMessage('Get command failed: ' + stderr);
-                return;
-            }
+function loadKubernetes(explorerNode? : explorer.ResourceNode) {
+    if (explorerNode) {
+        loadKubernetesCore(explorerNode.resourceId);
+    } else {
+        promptKindName(kuberesources.commonKinds, "load", { nameOptional: true }, (value) => {
+            loadKubernetesCore(value);
+        });
+    }
+}
 
-            const filename = value.replace('/', '-');
-            const filepath = path.join(vscode.workspace.rootPath, filename + '.json');
+function loadKubernetesCore(value : string) {
+    kubectl.invoke(" -o json get " + value, (result, stdout, stderr) => {
+        if (result !== 0) {
+            vscode.window.showErrorMessage('Get command failed: ' + stderr);
+            return;
+        }
 
-            vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + filepath)).then((doc) => {
-                const start = new vscode.Position(0, 0),
-                    end = new vscode.Position(0, 0),
-                    range = new vscode.Range(start, end),
-                    edit = new vscode.TextEdit(range, stdout),
-                    wsEdit = new vscode.WorkspaceEdit();
+        const filename = value.replace('/', '-');
+        const filepath = path.join(vscode.workspace.rootPath, filename + '.json');
 
-                wsEdit.set(doc.uri, [edit]);
-                vscode.workspace.applyEdit(wsEdit);
-                vscode.window.showTextDocument(doc);
-            });
-        })
+        vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + filepath)).then((doc) => {
+            const start = new vscode.Position(0, 0),
+                end = new vscode.Position(0, 0),
+                range = new vscode.Range(start, end),
+                edit = new vscode.TextEdit(range, stdout),
+                wsEdit = new vscode.WorkspaceEdit();
+
+            wsEdit.set(doc.uri, [edit]);
+            vscode.workspace.applyEdit(wsEdit);
+            vscode.window.showTextDocument(doc);
+        });
     });
 }
 
@@ -673,14 +686,6 @@ function parseName(line) {
     return line.split(' ')[0];
 }
 
-function curry(fn, arg) {
-    return () => {
-        let args = Array.prototype.slice.call(arguments, 0);
-        args.push(arg);
-        return fn.apply(null, args);
-    }
-}
-
 function findPod(callback) {
     let editor = vscode.window.activeTextEditor;
     if (!editor) {
@@ -749,8 +754,12 @@ function selectPodForApp(callback) {
     });
 }
 
-function logsKubernetes() {
-    findPod(getLogs);
+function logsKubernetes(explorerNode? : explorer.ResourceNode) {
+    if (explorerNode) {
+        getLogsCore(explorerNode.id);  // TODO: we don't know if there is a namespace in this case - is that a problem?
+    } else {
+        findPod(getLogs);
+    }
 }
 
 function getLogs(pod) {
@@ -758,14 +767,22 @@ function getLogs(pod) {
         vscode.window.showErrorMessage('Can\'t find a pod!');
         return;
     }
-    // TODO: Support multiple containers here!
+    getLogsCore(pod.name, pod.namespace);
 
-    let cmd = ' logs ' + pod.name;
-    if (pod.namespace && pod.namespace.length > 0) {
-        cmd += ' --namespace=' + pod.namespace;
+}
+
+function getLogsCore(podName : string, podNamespace? : string) {
+    // TODO: Support multiple containers here!
+    let cmd = ' logs ' + podName;
+    if (podNamespace && podNamespace.length > 0) {
+        cmd += ' --namespace=' + podNamespace;
     }
-    let fn = curry(kubectlOutput, pod.name + '-output');
+    const fn = kubectlOutputTo(podName + '-output');
     kubectl.invoke(cmd, fn);
+}
+
+function kubectlOutputTo(name : string) {
+    return (code, stdout, stderr) => kubectlOutput(code, stdout, stderr, name);
 }
 
 function kubectlOutput(result, stdout, stderr, name) {
@@ -797,11 +814,19 @@ function getPorts() {
     }
 }
 
-function describeKubernetes() {
-    findKindNameOrPrompt(kuberesources.commonKinds, 'describe', { nameOptional: true }, (value) => {
-        const fn = curry(kubectlOutput, value + "-describe");
-        kubectl.invoke(' describe ' + value, fn);
-    });
+function describeKubernetes(explorerNode? : explorer.ResourceNode) {
+    if (explorerNode) {
+        describeKubernetesCore(explorerNode.resourceId);
+    } else {
+        findKindNameOrPrompt(kuberesources.commonKinds, 'describe', { nameOptional: true }, (value) => {
+            describeKubernetesCore(value);
+        });
+    }
+}
+
+function describeKubernetesCore(kindName : string) {
+    const fn = kubectlOutputTo(kindName + "-describe");
+    kubectl.invoke(' describe ' + kindName, fn);
 }
 
 function selectContainerForPod(pod, callback) {
@@ -836,8 +861,12 @@ function execKubernetes() {
     execKubernetesCore(false);
 }
 
-function terminalKubernetes() {
-    execKubernetesCore(true);
+function terminalKubernetes(explorerNode? : explorer.ResourceNode) {
+    if (explorerNode) {
+        execTerminalOnPod(explorerNode.id, 'bash');
+    } else {
+        execKubernetesCore(true);
+    }
 }
 
 function execKubernetesCore(isTerminal) {
@@ -860,17 +889,21 @@ function execKubernetesCore(isTerminal) {
             }
 
             if (isTerminal) {
-                const terminalExecCmd : string[] = ['exec', '-it', pod.metadata.name, cmd];
-                const term = vscode.window.createTerminal('exec', kubectl.path(), terminalExecCmd);
-                term.show();
+                execTerminalOnPod(pod.metadata.name, cmd);
                 return;
             }
 
             const execCmd = ' exec ' + pod.metadata.name + ' ' + cmd;
-            let fn = curry(kubectlOutput, pod.metadata.name + '-exec')
+            const fn = kubectlOutputTo(pod.metadata.name + '-exec');
             kubectl.invoke(execCmd, fn);
         });
     });
+}
+
+function execTerminalOnPod(podName : string, terminalCmd : string) {
+    const terminalExecCmd : string[] = ['exec', '-it', podName, terminalCmd];
+    const term = vscode.window.createTerminal(`${terminalCmd} on ${podName}`, kubectl.path(), terminalExecCmd);
+    term.show();
 }
 
 function syncKubernetes() {

@@ -81,3 +81,8 @@ function execCore(cmd : string, opts : any) : Promise<ShellResult> {
         shelljs.exec(cmd, opts, (code, stdout, stderr) => resolve({code : code, stdout : stdout, stderr : stderr}));
     });
 }
+
+export function isShellResult<T>(obj : T | ShellResult) : obj is ShellResult {
+    const sr = <ShellResult>obj;
+    return sr.code !== undefined || sr.stdout !== undefined || sr.stderr !== undefined;
+}
