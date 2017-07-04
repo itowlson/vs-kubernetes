@@ -61,6 +61,7 @@ export function activate(context) {
         vscode.commands.registerCommand('extension.vsKubernetesRemoveDebug', removeDebugKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesConfigureFromAcs', configureFromAcsKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesDraftCreate', execDraftCreate),
+        vscode.commands.registerCommand('extension.vsKubernetesDraftUp', execDraftUp),
         vscode.commands.registerCommand('extension.vsKubernetesRefreshExplorer', () => treeProvider.refresh()),
         vscode.languages.registerHoverProvider(
             { language: 'json', scheme: 'file' },
@@ -1278,7 +1279,7 @@ enum DraftCreateResult {
 
 async function execDraftCreateApp(appName : string, pack? : string) : Promise<void> {
     const packOpt = pack ? ` -p ${pack}` : '';
-    const dcResult = await shell.exec(`draft create -a ${appName} ${packOpt}`);
+    const dcResult = await draft.invoke(`create -a ${appName} ${packOpt}`);
 
     switch (draftCreateResult(dcResult, !!pack)) {
         case DraftCreateResult.Succeeded:
@@ -1309,4 +1310,26 @@ function draftCreateResult(sr : ShellResult, hadPack : boolean) {
         return DraftCreateResult.NeedsPack;
     }
     return DraftCreateResult.Fatal;
+}
+
+async function execDraftUp() {
+    if (vscode.workspace.rootPath === undefined) {
+        vscode.window.showErrorMessage('This command requires an open folder.');
+        return;
+    }
+    if (!draft.isFolderMapped(vscode.workspace.rootPath)) {
+        vscode.window.showInformationMessage('This folder is not configured for draft. Run draft create to configure it.');
+        return;
+    }
+    if (!(await draft.checkPresent())) {
+        return;
+    }
+    // if it's already running... how can we tell?
+
+    // TODO: If non-watching then we should pipe the output to an Output window rather than using
+    // a terminal which exits when the command exits - but then do we have to manage the
+    // process?
+    const draftPath = await draft.path();
+    const term = vscode.window.createTerminal(`draft up`, draftPath, [ 'up' ]);  // TODO: this doesn't show output colourised - how to do that in a safe portable way?
+    term.show(true);
 }
