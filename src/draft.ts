@@ -2,6 +2,7 @@ import { Host } from './host';
 import { Shell, ShellResult } from './shell';
 import { FS } from './fs';
 import * as syspath from 'path';
+import * as binutil from './binutil';
 
 export interface Draft {
     checkPresent() : Promise<boolean>;
@@ -83,10 +84,7 @@ async function invoke(context : Context, args : string) : Promise<ShellResult> {
 // TODO: Windows-isation is similar to kubectl module
 async function path(context : Context) : Promise<string | undefined> {
     let bin = await pathCore(context);
-    if (context.shell.isWindows() && bin && !(bin.endsWith('.exe'))) {
-        bin = bin + '.exe';
-    }
-    return bin;
+    return binutil.execPath(context.shell, bin);
 }
 
 async function pathCore(context : Context) : Promise<string | undefined> {
@@ -103,7 +101,7 @@ async function checkForDraftInternal(context : Context) : Promise<boolean> {
         bin = context.host.getConfiguration('vs-kubernetes')['vs-kubernetes.draft-path'];
 
     if (!bin) {
-        const fb = await findBinary(context, 'draft');
+        const fb = await binutil.findBinary(context.shell, 'draft');
 
         if (fb.err || fb.output.length === 0) {
             alertNoDraft(context, 'inferFailed', 'Could not find "draft" binary.');
@@ -146,38 +144,6 @@ function alertNoDraft(context : Context, failureReason : CheckPresentFailureReas
             break;
     }
 }
-
-// TODO: this is an exact duplicate of kubectl.findBinary
-
-interface FindBinaryResult {
-    err : number | null;
-    output : string;
-}
-
-async function findBinary(context : Context, binName : string) : Promise<FindBinaryResult> {
-    let cmd = `which ${binName}`;
-
-    if (context.shell.isWindows()) {
-        cmd = `where.exe ${binName}.exe`;
-    }
-
-    const opts = {
-        async: true,
-        env: {
-            HOME: process.env.HOME,
-            PATH: process.env.PATH
-        }
-    }
-
-    const execResult = await context.shell.execCore(cmd, opts);
-    if (execResult.code) {
-        return { err: execResult.code, output: execResult.stderr };
-    }
-
-    return { err: null, output: execResult.stdout };
-}
-
-// END TODO
 
 function isFolderMapped(context: Context, path: string) : boolean {
     // Heuristic based on files created by 'draft create'
