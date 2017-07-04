@@ -1,5 +1,9 @@
 import { ShellResult } from '../src/shell';
 
+function nop(...args : any[]) {
+    return [];
+}
+
 export interface FakeHostSettings {
     errors? : string[];
     warnings? : string[];
@@ -9,6 +13,7 @@ export interface FakeHostSettings {
 
 export interface FakeFSSettings {
     existentPaths? : string[];
+    onDirSync? : (path: string) => string[];
 }
 
 export interface FakeCommand {
@@ -55,6 +60,7 @@ export function host(settings : FakeHostSettings = {}) : any {
 export function fs(settings : FakeFSSettings = {}) : any {
     return {
         existsSync: (path) => (settings.existentPaths || []).indexOf(path) >= 0,
+        dirSync: (path) => (settings.onDirSync || nop)(path),
     }
 }
 

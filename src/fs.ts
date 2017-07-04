@@ -6,6 +6,7 @@ export interface FS {
     readFileSync(filename : string, encoding : string) : string;
     writeFile(filename : string, data : any, callback? : (err : NodeJS.ErrnoException) => void) : void;
     writeFileSync(filename : string, data : any) : void;
+    dirSync(path: string) : string[];
 }
 
 export const fs : FS = {
@@ -14,4 +15,5 @@ export const fs : FS = {
     readFileSync: (filename, encoding) => sysfs.readFileSync(filename, encoding),
     writeFile: (filename, data, callback) => sysfs.writeFile(filename, data, callback),
     writeFileSync: (filename, data) => sysfs.writeFileSync(filename, data),
+    dirSync: (path) => sysfs.readdirSync(path),
 }

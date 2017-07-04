@@ -17,18 +17,20 @@ import * as tmp from 'tmp';
 // Internal dependencies
 import { host } from './host';
 import * as explainer from './explainer';
-import { shell } from './shell';
+import { shell, ShellResult } from './shell';
 import * as acs from './acs';
 import * as kuberesources from './kuberesources';
 import * as docker from './docker';
 import * as kubeconfig from './kubeconfig';
 import { create as kubectlCreate, Kubectl } from './kubectl';
 import * as explorer from './explorer';
+import { create as draftCreate, Draft } from './draft';
 
 let explainActive = false;
 let swaggerSpecPromise = null;
 
 const kubectl = kubectlCreate(host, fs, shell);
+const draft = draftCreate(host, fs, shell);
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
@@ -58,6 +60,7 @@ export function activate(context) {
         vscode.commands.registerCommand('extension.vsKubernetesDebug', debugKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesRemoveDebug', removeDebugKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesConfigureFromAcs', configureFromAcsKubernetes),
+        vscode.commands.registerCommand('extension.vsKubernetesDraftCreate', execDraftCreate),
         vscode.commands.registerCommand('extension.vsKubernetesRefreshExplorer', () => treeProvider.refresh()),
         vscode.languages.registerHoverProvider(
             { language: 'json', scheme: 'file' },
@@ -1247,4 +1250,63 @@ function acsShowOutput(message) {
     }
     _acsOutputChannel.appendLine(message);
     _acsOutputChannel.show();
+}
+
+async function execDraftCreate() {
+    if (vscode.workspace.rootPath === undefined) {
+        vscode.window.showErrorMessage('This command requires an open folder.');
+        return;
+    }
+    if (draft.isFolderMapped(vscode.workspace.rootPath)) {
+        vscode.window.showInformationMessage('This folder is already configured for draft. Run draft up to deploy.');
+        return;
+    }
+    if (!(await draft.checkPresent())) {
+        return;
+    }
+    const appName = await vscode.window.showInputBox({ prompt: "Choose a name for the Helm release"});
+    if (appName) {
+        await execDraftCreateApp(appName, undefined);
+    }
+}
+
+enum DraftCreateResult {
+    Succeeded,
+    Fatal,
+    NeedsPack,
+}
+
+async function execDraftCreateApp(appName : string, pack? : string) : Promise<void> {
+    const packOpt = pack ? ` -p ${pack}` : '';
+    const dcResult = await shell.exec(`draft create -a ${appName} ${packOpt}`);
+
+    switch (draftCreateResult(dcResult, !!pack)) {
+        case DraftCreateResult.Succeeded:
+            host.showInformationMessage("draft " + dcResult.stdout);
+            return;
+        case DraftCreateResult.Fatal:
+            host.showErrorMessage(`draft failed: ${dcResult.stderr}`);
+            return;
+        case DraftCreateResult.NeedsPack:
+            const packs = await draft.packs();
+            if (packs && packs.length > 0) {
+                const packSel = await host.showQuickPick(packs, { placeHolder: `Choose the Draft starter pack for ${appName}` });
+                if (packSel) {
+                    await execDraftCreateApp(appName, packSel);
+                }
+            } else {
+                host.showErrorMessage("Unable to determine starter pack, and no starter packs found to choose from.");
+            }
+            return;
+    }
+}
+
+function draftCreateResult(sr : ShellResult, hadPack : boolean) {
+    if (sr.code === 0) {
+        return DraftCreateResult.Succeeded;
+    }
+    if (!hadPack && sr.stderr.indexOf('Unable to select a starter pack') >= 0) {
+        return DraftCreateResult.NeedsPack;
+    }
+    return DraftCreateResult.Fatal;
 }
