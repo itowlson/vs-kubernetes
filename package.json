@@ -30,6 +30,7 @@
         "onCommand:extension.vsKubernetesRemoveDebug",
         "onCommand:extension.vsKubernetesConfigureFromAcs",
         "onCommand:extension.vsKubernetesDraftCreate",
+        "onCommand:extension.vsKubernetesDraftUp",
         "onView:extension.vsKubernetesExplorer"
     ],
     "main": "./out/src/extension",
@@ -173,6 +174,10 @@
         }, {
             "command": "extension.vsKubernetesDraftCreate",
             "title": "Create",
+            "category": "Kubernetes Draft"
+        }, {
+            "command": "extension.vsKubernetesDraftUp",
+            "title": "Up",
             "category": "Kubernetes Draft"
         }, {
             "command": "extension.vsKubernetesRefreshExplorer",
