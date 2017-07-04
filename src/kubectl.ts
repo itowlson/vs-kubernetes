@@ -4,7 +4,7 @@ import { Shell, ShellHandler, ShellResult } from './shell';
 import * as binutil from './binutil';
 
 export interface Kubectl {
-    checkPresent(errorMessageMode : CheckPresentMessageMode, onSuccess? : () => void) : Promise<void>;
+    checkPresent(errorMessageMode : CheckPresentMessageMode) : Promise<boolean>;
     invoke(command : string, handler? : ShellHandler) : Promise<void>;
     asLines(command : string): Promise<string[] | ShellResult>;
     path() : string;
@@ -14,18 +14,18 @@ interface Context {
     readonly host : Host;
     readonly fs : FS;
     readonly shell : Shell;
-    kubectlFound : boolean;
+    binFound : boolean;
 }
 
 class KubectlImpl implements Kubectl {
     constructor(host : Host, fs : FS, shell : Shell, kubectlFound : boolean) {
-        this.context = { host : host, fs : fs, shell : shell, kubectlFound : kubectlFound };
+        this.context = { host : host, fs : fs, shell : shell, binFound : kubectlFound };
     }
 
     private readonly context : Context;
 
-    checkPresent(errorMessageMode : CheckPresentMessageMode, onSuccess? : () => void) : Promise<void> {
-        return checkPresent(this.context, errorMessageMode, onSuccess);
+    checkPresent(errorMessageMode : CheckPresentMessageMode) : Promise<boolean> {
+        return checkPresent(this.context, errorMessageMode);
     }
     invoke(command : string, handler? : ShellHandler) : Promise<void> {
         return invoke(this.context, command, handler);
@@ -45,17 +45,15 @@ export function create(host : Host, fs : FS, shell : Shell) : Kubectl {
 type CheckPresentMessageMode = 'command' | 'activation';
 type CheckPresentFailureReason = 'inferFailed' | 'configuredFileMissing';
 
-async function checkPresent(context : Context, errorMessageMode : CheckPresentMessageMode, onSuccess? : () => void) : Promise<void> {
-    if (!context.kubectlFound) {
-        const defOnSuccess = onSuccess || (() => { return; });
-        await checkForKubectlInternal(context, errorMessageMode, defOnSuccess);
-        return;
+async function checkPresent(context : Context, errorMessageMode : CheckPresentMessageMode) : Promise<boolean> {
+    if (context.binFound) {
+        return true;
     }
 
-    onSuccess();
+    return await checkForKubectlInternal(context, errorMessageMode);
 }
 
-async function checkForKubectlInternal(context : Context, errorMessageMode : CheckPresentMessageMode, onSuccess : () => void) : Promise<void> {
+async function checkForKubectlInternal(context : Context, errorMessageMode : CheckPresentMessageMode) : Promise<boolean> {
     const
         contextMessage = getCheckKubectlContextMessage(errorMessageMode),
         bin = context.host.getConfiguration('vs-kubernetes')['vs-kubernetes.kubectl-path'];
@@ -65,23 +63,20 @@ async function checkForKubectlInternal(context : Context, errorMessageMode : Che
 
         if (fb.err || fb.output.length === 0) {
             alertNoKubectl(context, 'inferFailed', 'Could not find "kubectl" binary.' + contextMessage);
-            return;
+            return false;
         }
 
-        context.kubectlFound = true;
+        context.binFound = true;
 
-        onSuccess();
-
-        return;
+        return true;
     }
 
-    context.kubectlFound = context.fs.existsSync(bin);
-    if (!context.kubectlFound) {
+    context.binFound = context.fs.existsSync(bin);
+    if (!context.binFound) {
         alertNoKubectl(context, 'configuredFileMissing', bin + ' does not exist!' + contextMessage);
-        return;
     }
 
-    onSuccess();
+    return context.binFound;
 }
 
 function getCheckKubectlContextMessage(errorMessageMode : CheckPresentMessageMode) : string {
@@ -123,11 +118,11 @@ async function invokeAsync(context : Context, command : string, handler? : Shell
 }
 
 async function kubectlInternal(context : Context, command : string, handler : ShellHandler) : Promise<void> {
-    await checkPresent(context, 'command', () => {
+    if (await checkPresent(context, 'command')) {
         const bin = baseKubectlPath(context);
         let cmd = bin + ' ' + command
         context.shell.exec(cmd).then(({code, stdout, stderr}) => handler(code, stdout, stderr));
-    });
+    }
 }
 
 function kubectlDone(context : Context) : ShellHandler {

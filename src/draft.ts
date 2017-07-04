@@ -20,13 +20,13 @@ interface Context {
     readonly host : Host;
     readonly fs : FS;
     readonly shell : Shell;
-    draftFound : boolean;
-    draftPath : string;
+    binFound : boolean;
+    binPath : string;
 }
 
 class DraftImpl implements Draft {
     constructor(host : Host, fs : FS, shell : Shell, draftFound : boolean) {
-        this.context = { host : host, fs : fs, shell : shell, draftFound : draftFound, draftPath : 'draft' };
+        this.context = { host : host, fs : fs, shell : shell, binFound : draftFound, binPath : 'draft' };
     }
 
     private readonly context : Context;
@@ -53,7 +53,7 @@ class DraftImpl implements Draft {
 }
 
 async function checkPresent(context : Context) : Promise<boolean> {
-    if (context.draftFound) {
+    if (context.binFound) {
         return true;
     }
 
@@ -76,7 +76,7 @@ async function packs(context : Context) : Promise<string[] | undefined> {
 
 async function invoke(context : Context, args : string) : Promise<ShellResult> {
     if (await checkPresent(context)) {
-        const result = context.shell.exec(context.draftPath + ' ' + args);
+        const result = context.shell.exec(context.binPath + ' ' + args);
         return result;
     }
 }
@@ -89,7 +89,7 @@ async function path(context : Context) : Promise<string | undefined> {
 
 async function pathCore(context : Context) : Promise<string | undefined> {
     if (await checkPresent(context)) {
-        return context.draftPath;
+        return context.binPath;
     }
     return undefined;
 }
@@ -108,20 +108,20 @@ async function checkForDraftInternal(context : Context) : Promise<boolean> {
             return false;
         }
 
-        context.draftFound = true;
+        context.binFound = true;
 
         return true;
     }
 
-    context.draftFound = context.fs.existsSync(bin);
+    context.binFound = context.fs.existsSync(bin);
 
-    if (context.draftFound) {
-        context.draftPath = bin;
+    if (context.binFound) {
+        context.binPath = bin;
     } else {
         alertNoDraft(context, 'configuredFileMissing', bin + ' does not exist!');
     }
 
-    return context.draftFound;
+    return context.binFound;
 }
 
 type CheckPresentFailureReason = 'inferFailed' | 'configuredFileMissing';
