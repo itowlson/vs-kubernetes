@@ -1,6 +1,7 @@
 import { Host } from './host';
 import { FS } from './fs';
 import { Shell, ShellHandler, ShellResult } from './shell';
+import * as binutil from './binutil';
 
 export interface Kubectl {
     checkPresent(errorMessageMode : CheckPresentMessageMode, onSuccess? : () => void) : Promise<void>;
@@ -60,7 +61,7 @@ async function checkForKubectlInternal(context : Context, errorMessageMode : Che
         bin = context.host.getConfiguration('vs-kubernetes')['vs-kubernetes.kubectl-path'];
 
     if (!bin) {
-        const fb = await findBinary(context, 'kubectl');
+        const fb = await binutil.findBinary(context.shell, 'kubectl');
 
         if (fb.err || fb.output.length === 0) {
             alertNoKubectl(context, 'inferFailed', 'Could not find "kubectl" binary.' + contextMessage);
@@ -163,37 +164,5 @@ async function asLines(context : Context, command : string) : Promise<string[] |
 
 function path(context : Context) : string {
     let bin = baseKubectlPath(context);
-    if (context.shell.isWindows() && !(bin.endsWith('.exe'))) {
-        bin = bin + '.exe';
-    }
-    return bin;
+    return binutil.execPath(context.shell, bin);
 }
-
-interface FindBinaryResult {
-    err : number | null;
-    output : string;
-}
-
-async function findBinary(context : Context, binName : string) : Promise<FindBinaryResult> {
-    let cmd = `which ${binName}`;
-
-    if (context.shell.isWindows()) {
-        cmd = `where.exe ${binName}.exe`;
-    }
-
-    const opts = {
-        async: true,
-        env: {
-            HOME: process.env.HOME,
-            PATH: process.env.PATH
-        }
-    }
-
-    const execResult = await context.shell.execCore(cmd, opts);
-    if (execResult.code) {
-        return { err: execResult.code, output: execResult.stderr };
-    }
-
-    return { err: null, output: execResult.stdout };
-}
-
