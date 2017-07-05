@@ -31,6 +31,7 @@
         "onCommand:extension.vsKubernetesConfigureFromAcs",
         "onCommand:extension.vsKubernetesDraftCreate",
         "onCommand:extension.vsKubernetesDraftUp",
+        "onCommand:extension.vsKubernetesPreviewAllTheThings",
         "onView:extension.vsKubernetesExplorer"
     ],
     "main": "./out/src/extension",
@@ -187,6 +188,10 @@
         }, {
             "command": "extension.vsKubernetesRefreshExplorer",
             "title": "Refresh"
+        }, {
+            "command": "extension.vsKubernetesPreviewAllTheThings",
+            "title": "Preview All The Things",
+            "category": "Kubernetes"
         }]
     },
     "scripts": {

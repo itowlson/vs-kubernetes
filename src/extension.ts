@@ -25,6 +25,7 @@ import * as kubeconfig from './kubeconfig';
 import { create as kubectlCreate, Kubectl } from './kubectl';
 import * as explorer from './explorer';
 import { create as draftCreate, Draft } from './draft';
+import * as docme from './docme';
 
 let explainActive = false;
 let swaggerSpecPromise = null;
@@ -62,6 +63,7 @@ export function activate(context) {
         vscode.commands.registerCommand('extension.vsKubernetesConfigureFromAcs', configureFromAcsKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesDraftCreate', execDraftCreate),
         vscode.commands.registerCommand('extension.vsKubernetesDraftUp', execDraftUp),
+        vscode.commands.registerCommand('extension.vsKubernetesPreviewAllTheThings', execPatt),
         vscode.commands.registerCommand('extension.vsKubernetesRefreshExplorer', () => treeProvider.refresh()),
         vscode.languages.registerHoverProvider(
             { language: 'json', scheme: 'file' },
@@ -71,6 +73,7 @@ export function activate(context) {
             { language: 'yaml', scheme: 'file' },
             { provideHover: provideHoverYaml }
         ),
+        vscode.workspace.registerTextDocumentContentProvider("biscotti", new docme.DocMe()),
         vscode.window.registerTreeDataProvider('extension.vsKubernetesExplorer', treeProvider)
     ];
 
@@ -389,9 +392,10 @@ function getTextForActiveWindow(callback) {
     return;
 }
 
-function loadKubernetes(explorerNode? : explorer.ResourceNode) {
+function loadKubernetes(explorerNode? : any) {
     if (explorerNode) {
-        loadKubernetesCore(explorerNode.resourceId);
+        console.log(explorerNode);
+        //loadKubernetesCore(explorerNode.resourceId);
     } else {
         promptKindName(kuberesources.commonKinds, "load", { nameOptional: true }, (value) => {
             loadKubernetesCore(value);
@@ -1333,4 +1337,8 @@ async function execDraftUp() {
     const draftPath = await draft.path();
     const term = vscode.window.createTerminal(`draft up`, draftPath, [ 'up' ]);  // TODO: this doesn't show output colourised - how to do that in a safe portable way?
     term.show(true);
+}
+
+function execPatt() {
+    vscode.commands.executeCommand('vscode.previewHtml', "biscotti://1", 2 /* columns start at 1 */, "Biscuits!!!");
 }
