@@ -13,6 +13,7 @@ It also assumes that you have the following binaries on your `PATH`:
    * `kubectl`
    * `docker`
    * `git`
+   * `draft` (optional)
 
 If you don't have those on your PATH then the extension will fail in
 unexpected ways.
@@ -21,6 +22,8 @@ For setting up `kubectl` you have a couple of additional options:
 
    * If `kubectl` is not on your PATH then you can tell the extension its location using the `vs-kubernetes.kubectl-path` workspace setting. This should be the full file name and path of the kubectl binary.
    * If you are using the extension to work with an Azure Container Service then you can install and configure `kubectl` using the `Kubernetes Configure from ACS` command.
+
+For setting up `draft` you can also do this via configuration.
 
 ### Setting up the image repository path
 
@@ -74,11 +77,21 @@ menu (`ctrl-shift-p`)
 
    * `Kubernetes Configure from ACS` - Install and configure the Kubernetes command line tool (kubectl) from an Azure Container Service
 
+### Draft support
+
+[Draft](http://blog.kubernetes.io/2017/05/draft-kubernetes-container-development.html) is a tool to simplify the process of developing a new Kubernetes application, by creating the necessary deployment components and by keeping code in the cluster in sync with the code on your computer.
+
+  * `Kubernetes Draft: Create` - Set up Draft in the current folder (prerequisite for syncing using Draft)
+  * `Kubernetes Draft: Up` - Runs Draft to watch the current folder and keep the cluster in sync with it
+
+**NOTE:** Draft itself is in 'draft' form and is not yet stable. So the extension support for Draft is strictly experimental - assumptions may break, and commands and behavior may change!
+
 ## Extension Settings
 
    * `vs-kubernetes` - Parent for Kubernetes-related extension settings
        * `vs-kubernetes.namespace` - The namespace to use for all commands
        * `vs-kubernetes.kubectl-path` - File path to the kubectl binary. Note this is the binary file itself, not just the directory containing the file. On Windows, this must contain the `.exe` extension.
+       * `vs-kubernetes.draft-path` - File path to the draft binary. Note this is the binary file itself, not just the directory containing the file. On Windows, this must contain the `.exe` extension.
    * `vsdocker.imageUser` - Image prefix for docker images e.g. 'docker.io/brendanburns'
 
 ## Known Issues
