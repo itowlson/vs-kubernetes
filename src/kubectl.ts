@@ -15,11 +15,12 @@ interface Context {
     readonly fs : FS;
     readonly shell : Shell;
     binFound : boolean;
+    binPath : string;
 }
 
 class KubectlImpl implements Kubectl {
     constructor(host : Host, fs : FS, shell : Shell, kubectlFound : boolean) {
-        this.context = { host : host, fs : fs, shell : shell, binFound : kubectlFound };
+        this.context = { host : host, fs : fs, shell : shell, binFound : kubectlFound, binPath : 'kubectl' };
     }
 
     private readonly context : Context;
@@ -43,7 +44,6 @@ export function create(host : Host, fs : FS, shell : Shell) : Kubectl {
 }
 
 type CheckPresentMessageMode = 'command' | 'activation';
-type CheckPresentFailureReason = 'inferFailed' | 'configuredFileMissing';
 
 async function checkPresent(context : Context, errorMessageMode : CheckPresentMessageMode) : Promise<boolean> {
     if (context.binFound) {
@@ -54,29 +54,14 @@ async function checkPresent(context : Context, errorMessageMode : CheckPresentMe
 }
 
 async function checkForKubectlInternal(context : Context, errorMessageMode : CheckPresentMessageMode) : Promise<boolean> {
-    const
-        contextMessage = getCheckKubectlContextMessage(errorMessageMode),
-        bin = context.host.getConfiguration('vs-kubernetes')['vs-kubernetes.kubectl-path'];
+    const binName = 'kubectl';
+    const bin = context.host.getConfiguration('vs-kubernetes')[`vs-kubernetes.${binName}-path`];
 
-    if (!bin) {
-        const fb = await binutil.findBinary(context.shell, 'kubectl');
+    const contextMessage = getCheckKubectlContextMessage(errorMessageMode);
+    const inferFailedMessage = 'Could not find "kubectl" binary.' + contextMessage;
+    const configuredFileMissingMessage = bin + ' does not exist!' + contextMessage;
 
-        if (fb.err || fb.output.length === 0) {
-            alertNoKubectl(context, 'inferFailed', 'Could not find "kubectl" binary.' + contextMessage);
-            return false;
-        }
-
-        context.binFound = true;
-
-        return true;
-    }
-
-    context.binFound = context.fs.existsSync(bin);
-    if (!context.binFound) {
-        alertNoKubectl(context, 'configuredFileMissing', bin + ' does not exist!' + contextMessage);
-    }
-
-    return context.binFound;
+    return await binutil.checkForBinary(context, bin, binName, inferFailedMessage, configuredFileMissingMessage);
 }
 
 function getCheckKubectlContextMessage(errorMessageMode : CheckPresentMessageMode) : string {
@@ -86,25 +71,6 @@ function getCheckKubectlContextMessage(errorMessageMode : CheckPresentMessageMod
         return ' Cannot execute command.';
     }
     return '';
-}
-
-function alertNoKubectl(context : Context, failureReason : CheckPresentFailureReason, message : string) : void {
-    switch (failureReason) {
-        case 'inferFailed':
-            context.host.showErrorMessage(message, 'Learn more').then(
-                (str) => {
-                    if (str !== 'Learn more') {
-                        return;
-                    }
-
-                    context.host.showInformationMessage('Add kubectl directory to path, or set "vs-kubernetes.kubectl-path" config to kubectl binary.');
-                }
-            );
-            break;
-        case 'configuredFileMissing':
-            context.host.showErrorMessage(message);
-            break;
-    }
 }
 
 async function invoke(context : Context, command : string, handler? : ShellHandler) : Promise<void> {

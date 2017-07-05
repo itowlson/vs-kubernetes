@@ -81,7 +81,6 @@ async function invoke(context : Context, args : string) : Promise<ShellResult> {
     }
 }
 
-// TODO: Windows-isation is similar to kubectl module
 async function path(context : Context) : Promise<string | undefined> {
     let bin = await pathCore(context);
     return binutil.execPath(context.shell, bin);
@@ -94,55 +93,14 @@ async function pathCore(context : Context) : Promise<string | undefined> {
     return undefined;
 }
 
-// TODO: reduce duplication with kubectl module
-
 async function checkForDraftInternal(context : Context) : Promise<boolean> {
-    const
-        bin = context.host.getConfiguration('vs-kubernetes')['vs-kubernetes.draft-path'];
+    const binName = 'draft';
+    const bin = context.host.getConfiguration('vs-kubernetes')[`vs-kubernetes.${binName}-path`];
 
-    if (!bin) {
-        const fb = await binutil.findBinary(context.shell, 'draft');
+    const inferFailedMessage = 'Could not find "draft" binary.';
+    const configuredFileMissingMessage = bin + ' does not exist!';
 
-        if (fb.err || fb.output.length === 0) {
-            alertNoDraft(context, 'inferFailed', 'Could not find "draft" binary.');
-            return false;
-        }
-
-        context.binFound = true;
-
-        return true;
-    }
-
-    context.binFound = context.fs.existsSync(bin);
-
-    if (context.binFound) {
-        context.binPath = bin;
-    } else {
-        alertNoDraft(context, 'configuredFileMissing', bin + ' does not exist!');
-    }
-
-    return context.binFound;
-}
-
-type CheckPresentFailureReason = 'inferFailed' | 'configuredFileMissing';
-
-function alertNoDraft(context : Context, failureReason : CheckPresentFailureReason, message : string) : void {
-    switch (failureReason) {
-        case 'inferFailed':
-            context.host.showErrorMessage(message, 'Learn more').then(
-                (str) => {
-                    if (str !== 'Learn more') {
-                        return;
-                    }
-
-                    context.host.showInformationMessage('Add draft directory to path, or set "vs-kubernetes.draft-path" config to kubectl binary.');
-                }
-            );
-            break;
-        case 'configuredFileMissing':
-            context.host.showErrorMessage(message);
-            break;
-    }
+    return binutil.checkForBinary(context, bin, binName, inferFailedMessage, configuredFileMissingMessage);
 }
 
 function isFolderMapped(context: Context, path: string) : boolean {
