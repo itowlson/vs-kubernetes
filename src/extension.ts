@@ -13,6 +13,7 @@ import { fs } from './fs';
 import * as yaml from 'js-yaml';
 import * as dockerfileParse from 'dockerfile-parse';
 import * as tmp from 'tmp';
+const uuidv4 = require('uuid/v4');
 
 // Internal dependencies
 import { host } from './host';
@@ -32,6 +33,7 @@ let swaggerSpecPromise = null;
 
 const kubectl = kubectlCreate(host, fs, shell);
 const draft = draftCreate(host, fs, shell);
+const dp = new docme.DocMe();
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
@@ -73,7 +75,7 @@ export function activate(context) {
             { language: 'yaml', scheme: 'file' },
             { provideHover: provideHoverYaml }
         ),
-        vscode.workspace.registerTextDocumentContentProvider("biscotti", new docme.DocMe()),
+        vscode.workspace.registerTextDocumentContentProvider("acsconfigure", dp),
         vscode.window.registerTreeDataProvider('extension.vsKubernetesExplorer', treeProvider)
     ];
 
@@ -1339,6 +1341,14 @@ async function execDraftUp() {
     term.show(true);
 }
 
-function execPatt() {
-    vscode.commands.executeCommand('vscode.previewHtml', "biscotti://1", 2 /* columns start at 1 */, "Biscuits!!!");
+function execPatt(opid? : any) {
+    if (opid) {
+        //console.log('EP ' + opid);
+        dp.pokeyPokey(opid);
+        return;
+    }
+    //console.log('EP NONE');
+    const newid = uuidv4();
+    dp.pokeyPokey(newid);
+    vscode.commands.executeCommand('vscode.previewHtml', "acsconfigure://operations/" + newid, 2 /* columns start at 1 */, opid);
 }
