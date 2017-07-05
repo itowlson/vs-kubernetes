@@ -1265,7 +1265,8 @@ async function execDraftCreate() {
     if (!(await draft.checkPresent())) {
         return;
     }
-    const appName = await vscode.window.showInputBox({ prompt: "Choose a name for the Helm release"});
+    const proposedAppName = path.basename(vscode.workspace.rootPath);
+    const appName = await vscode.window.showInputBox({ value: proposedAppName, prompt: "Choose a name for the Helm release"});
     if (appName) {
         await execDraftCreateApp(appName, undefined);
     }
