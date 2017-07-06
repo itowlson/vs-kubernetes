@@ -79,6 +79,7 @@ enum OpStage {
 let trackedops : any = {};
 
 // TODO: deduplicate with acs module
+// actually don't need to dedupe as this would replace the acs module
 async function acsSubs() : Promise<string[]> {
     const sr = await shell.exec("az account list --all --query [*].name -ojson")
     if (sr.code === 0 && !sr.stderr) {
@@ -109,6 +110,16 @@ function promptForSubs(opid: string, subs: string[]) : string {
 
     return `
 <h1 id='h'>Choose subscription</h1>
+
+<style>
+.vscode-light #nextlink {
+    color: navy;
+}
+
+.vscode-dark #nextlink {
+    color: azure;
+}
+</style>
 
 <script>
 function promptWait() {
@@ -142,6 +153,16 @@ function promptForCluster(opid: string, clusters: any[]) : string {
     const uri = encodeURI("command:extension.vsKubernetesPreviewAllTheThings?" + JSON.stringify({opid: opid, cluster: `${clusters[0].resourceGroup}/${clusters[0].name}`}));
     return `
 <h1 id='h'>Choose cluster</h1>
+
+<style>
+.vscode-light #nextlink {
+    color: navy;
+}
+
+.vscode-dark #nextlink {
+    color: azure;
+}
+</style>
 
 <script>
 function promptWait() {
