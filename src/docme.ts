@@ -21,7 +21,7 @@ export class DocMe implements vscode.TextDocumentContentProvider {
     private async getContent(opid : string) : Promise<string> {
         //console.log('GC ' + opid);
 
-        switch (trackedops[opid]) {
+        switch (trackedops[opid].stage) {
             case OpStage.PromptForSubs:
                 const subs = await acsSubs();
                 return await promptForSubs(opid, subs);
@@ -38,9 +38,10 @@ export class DocMe implements vscode.TextDocumentContentProvider {
 }
 
 function advance(opid: string) {
-    let currentStage = trackedops[opid];
+    let currentOp = trackedops[opid];
     //console.log(currentStage || "NEW NEW NEW");
-    if (currentStage) {
+    if (currentOp) {
+        let currentStage = currentOp.stage;
         switch (currentStage) {
             case OpStage.PromptForSubs:
                 currentStage = OpStage.PromptForAccount;
@@ -54,10 +55,9 @@ function advance(opid: string) {
             case OpStage.Done:
                 throw "shouldn't have gone past here";
         }
-        trackedops[opid] = currentStage;
+        trackedops[opid].stage = currentStage;
     } else {
-        currentStage = OpStage.PromptForSubs;
-        trackedops[opid] = currentStage;
+        trackedops[opid] = { stage: OpStage.PromptForSubs };
     }
 
     //console.log(currentStage);
