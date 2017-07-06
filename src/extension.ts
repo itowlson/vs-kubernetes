@@ -1341,14 +1341,14 @@ async function execDraftUp() {
     term.show(true);
 }
 
-function execPatt(opid? : any) {
-    if (opid) {
-        //console.log('EP ' + opid);
-        dp.pokeyPokey(opid);
+function execPatt(request? : any) {
+    if (request) {
+        console.log('EP ' + JSON.stringify(request));
+        dp.pokeyPokey(request);
         return;
     }
     //console.log('EP NONE');
     const newid = uuidv4();
-    dp.pokeyPokey(newid);
-    vscode.commands.executeCommand('vscode.previewHtml', "acsconfigure://operations/" + newid, 2 /* columns start at 1 */, opid);
+    dp.pokeyPokey({opid: newid});
+    vscode.commands.executeCommand('vscode.previewHtml', "acsconfigure://operations/" + newid, 2 /* columns start at 1 */, "Connect");
 }
