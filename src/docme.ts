@@ -21,6 +21,8 @@ export class DocMe implements vscode.TextDocumentContentProvider {
     private async getContent(opid : string) : Promise<string> {
         //console.log('GC ' + opid);
 
+        // the acs* calls should probably happen during pokeyPokey - getContent should only render the current state
+        // as it may be called again when reloading the window
         switch (trackedops[opid].stage) {
             case OpStage.PromptForSubs:
                 const subs = await acsSubs();
@@ -34,13 +36,14 @@ export class DocMe implements vscode.TextDocumentContentProvider {
                 const parsept = clusInfo.indexOf('/');
                 const rg = clusInfo.substr(0, parsept);
                 const clusname = clusInfo.substr(parsept + 1);
-                return `<h1>Completed</h1><p>You selected ${clusname} in resource group ${rg}</p>`;
+                const result = await acsGetAllTheThings(clusname, rg);
+                return notifyResult(result);
         }
     }
 }
 
 async function login(sub : string) {
-    console.log('connecting to ' + sub);
+    //console.log('connecting to ' + sub);
     await shell.exec('az account set --subscription "' + sub + '"');
 }
 
@@ -102,6 +105,53 @@ async function acsClusters() : Promise<any[]> {
     } else {
         throw sr.stderr;
     }
+}
+
+async function acsGetAllTheThings(clusterName : string, clusterGroup : string) : Promise<any> {
+    let installDir, installFile, cmd;
+    let result : any = {};
+    const cmdCore = 'az acs kubernetes install-cli';
+    const isWindows = shell.isWindows();
+    if (isWindows) {
+        // The default Windows install location requires admin permissions; install
+        // into a user profile directory instead. We process the path explicitly
+        // instead of using %LOCALAPPDATA% in the command, so that we can render the
+        // physical path when notifying the user.
+        const appDataDir = process.env['LOCALAPPDATA'];
+        installDir = appDataDir + '\\kubectl';
+        installFile = installDir + '\\kubectl.exe';
+        cmd = `(if not exist "${installDir}" md "${installDir}") & ${cmdCore} --install-location="${installFile}"`;
+    } else {
+        // Bah, the default Linux install location requires admin permissions too!
+        // Fortunately, $HOME/bin is on the path albeit not created by default.
+        const homeDir = process.env['HOME'];
+        installDir = homeDir + '/bin';
+        installFile = installDir + '/kubectl';
+        cmd = `mkdir -p "${installDir}" ; ${cmdCore} --install-location="${installFile}"`;
+    }
+    const sr = await shell.exec(cmd);
+    
+    if (sr.code === 0) {
+        const onDefaultPath = !isWindows;
+        result.gotCli = true;
+        result.installFile = installFile;
+        result.onDefaultPath = onDefaultPath;
+    } else {
+        result.gotCli = false;
+        result.getCliError = sr.stderr;
+    }
+
+    const cmd2 = 'az acs kubernetes get-credentials -n ' + clusterName + ' -g ' + clusterGroup;
+    const sr2 = await shell.exec(cmd2);
+
+    if (sr2.code === 0 && !sr2.stderr) {
+        result.gotCreds = true;
+    } else {
+        result.gotCreds = false;
+        result.getCredsError = sr2.stderr;
+    }
+
+    return result;
 }
 
 function promptForSubs(opid: string, subs: string[]) : string {
@@ -187,6 +237,56 @@ ${clusopts}
 <p>
 <a id='nextlink' href='${uri}' onclick='promptWait()'>Configure!</a>
 </p>
+</div>
+`;
+}
+
+function notifyResult(result : any) : string {
+    const succeeded = result.gotCli && result.gotCreds;
+    const getCliResultHtml = result.gotCli ? `
+<p class='success'>kubectl installed at ${result.installFile}</p>
+
+${result.onDefaultPath ? '' : '<p>This location is not on your system PATH. Add this directory to your path, or set the VS Code <b>vs-kubernetes.kubectl-path</b> config setting.</p>'}
+` : `
+<p class='error'>An error occurred while downloading kubectl.</p>
+<p><b>Details</b></p>
+<p>${result.getCliError}</p>
+`;
+
+    const getCredsResultHtml = result.gotCreds ? `<p class='success'>Successfully configured kubectl with Azure Container Service cluster credentials.</p>` : `
+<p class='error'>An error occurred while getting Azure Container Service cluster credentials.</p>
+<p><b>Details</b></p>
+<p>${result.getCredsError}</p>
+`;
+
+    return `
+<h1 id='h'>${succeeded ? "Configuration completed" : "Configuration error"}</h1>
+
+<style>
+.vscode-light .error {
+    color: red;
+    font-weight: bold;
+}
+
+.vscode-dark .error {
+    color: red;
+    font-weight: bold;
+}
+
+.vscode-light .success {
+    color: green;
+    font-weight: bold;
+}
+
+.vscode-dark .success {
+    color: darkseagreen;
+    font-weight: bold;
+}
+</style>
+
+<div id='content'>
+${getCliResultHtml}
+${getCredsResultHtml}
 </div>
 `;
 }

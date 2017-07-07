@@ -1343,7 +1343,7 @@ async function execDraftUp() {
 
 function execPatt(request? : any) {
     if (request) {
-        console.log('EP ' + JSON.stringify(request));
+        //console.log('EP ' + JSON.stringify(request));
         dp.pokeyPokey(request);
         return;
     }
