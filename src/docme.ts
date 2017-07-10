@@ -11,9 +11,9 @@ export class DocMe implements vscode.TextDocumentContentProvider {
         return this.getContent(uri.path.substr(1));
     }
 
-    pokeyPokey(request : any) {
+    async pokeyPokey(request : any) : Promise<void> {
         //console.log('PP ' + opid);
-        advance(request);
+        await advance(request);
         this._onDidChange.fire(vscode.Uri.parse("acsconfigure://operations/" + request.opid));  // okay so the URL needs to be the same (this is saying "the doc at URL blah has changed," not "refresh the document with the content of URL blah")
                                                         // so we need to figure out where state lives and how to pass it around
     }
@@ -23,32 +23,43 @@ export class DocMe implements vscode.TextDocumentContentProvider {
 
         // the acs* calls should probably happen during pokeyPokey - getContent should only render the current state
         // as it may be called again when reloading the window
+        if (!trackedops[opid]) {
+            return "<h1>Listing subscriptions</h1><p>Talking to Microsoft Azure - please wait...</p>";
+        }
         switch (trackedops[opid].stage) {
             case OpStage.PromptForSubs:
-                const subs = await acsSubs();
+                // const subs = await acsSubs();
+                const subs = trackedops[opid].state;
                 if (subs.succeeded) {
                     return await promptForSubs(opid, subs.result);
                 } else {
-                    return notifyError("listing subscriptions", subs.error);
+                    return notifyError(trackedops[opid].actionDescription, subs.error);
                 }
             case OpStage.PromptForCluster:
-                const l = await login(trackedops[opid].sub);
-                if (l.succeeded) {
-                    const clusters = await acsClusters();
-                    if (clusters.succeeded) {
-                        return await promptForCluster(opid, clusters.result);
-                    } else {
-                        return notifyError("listing clusters", clusters.error);
-                    }
+                const c = trackedops[opid].state;
+                if (c.succeeded) {
+                    return await promptForCluster(opid, c.result);
                 } else {
-                    return notifyError("logging into subscription", l.error);
+                    return notifyError(trackedops[opid].actionDescription, c.error);
                 }
+                // const l = await login(trackedops[opid].sub);
+                // if (l.succeeded) {
+                //     const clusters = await acsClusters();
+                //     if (clusters.succeeded) {
+                //         return await promptForCluster(opid, clusters.result);
+                //     } else {
+                //         return notifyError("listing clusters", clusters.error);
+                //     }
+                // } else {
+                //     return notifyError("logging into subscription", l.error);
+                // }
             case OpStage.Done:
-                const clusInfo : string = trackedops[opid].cluster;
-                const parsept = clusInfo.indexOf('/');
-                const rg = clusInfo.substr(0, parsept);
-                const clusname = clusInfo.substr(parsept + 1);
-                const result = await acsGetAllTheThings(clusname, rg);
+                // const clusInfo : string = trackedops[opid].cluster;
+                // const parsept = clusInfo.indexOf('/');
+                // const rg = clusInfo.substr(0, parsept);
+                // const clusname = clusInfo.substr(parsept + 1);
+                // const result = await acsGetAllTheThings(clusname, rg);
+                const result = trackedops[opid].state.result;
                 return notifyResult(result);
         }
     }
@@ -63,7 +74,7 @@ async function login(sub : string) : Promise<Errorable<boolean>> {
     return { succeeded: false, result: false, error: sr.stderr };        
 }
 
-function advance(request: any) {
+async function advance(request: any) : Promise<void> {
     const opid : string = request.opid;
     let currentOp = trackedops[opid];
     //console.log(currentStage || "NEW NEW NEW");
@@ -71,19 +82,32 @@ function advance(request: any) {
         let currentStage = currentOp.stage;
         switch (currentStage) {
             case OpStage.PromptForSubs:
-                trackedops[opid].sub = request.sub;
-                currentStage = OpStage.PromptForCluster;
+                //trackedops[opid].sub = request.sub;
+                const l = await login(request.sub);
+                if (l.succeeded) {
+                    const clusters = await acsClusters();
+                    trackedops[opid] = { stage: OpStage.PromptForCluster, actionDescription: 'listing clusters', state: clusters };
+                } else {
+                    trackedops[opid] = { stage: OpStage.PromptForCluster, actionDescription: 'logging into subscription', state: l };
+                }
                 break;
             case OpStage.PromptForCluster:
-                trackedops[opid].cluster = request.cluster;  // in form rg/clus
-                currentStage = OpStage.Done;
+                //trackedops[opid].cluster = request.cluster;  // in form rg/clus
+                //currentStage = OpStage.Done;
+                const clusInfo : string = request.cluster;
+                const parsept = clusInfo.indexOf('/');
+                const rg = clusInfo.substr(0, parsept);
+                const clusname = clusInfo.substr(parsept + 1);
+                const result = await acsGetAllTheThings(clusname, rg);
+                trackedops[opid] = { stage: OpStage.Done, actionDescription: '', state: result };
                 break;
             case OpStage.Done:
                 throw "shouldn't have gone past here";
         }
-        trackedops[opid].stage = currentStage;
+        //trackedops[opid].stage = currentStage;
     } else {
-        trackedops[opid] = { stage: OpStage.PromptForSubs };
+        const subs = await acsSubs();
+        trackedops[opid] = { stage: OpStage.PromptForSubs, actionDescription: "listing subscriptions", state: subs };
     }
 
     //console.log(currentStage);
@@ -93,6 +117,12 @@ enum OpStage {
     PromptForSubs = 1,  // don't start at 0 because it's falsy
     PromptForCluster = 2,
     Done = 3
+}
+
+interface OpState {
+    readonly stage: OpStage;
+    readonly actionDescription: string;
+    readonly state: Errorable<any>;
 }
 
 let trackedops : any = {};

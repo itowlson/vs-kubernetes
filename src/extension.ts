@@ -1341,14 +1341,14 @@ async function execDraftUp() {
     term.show(true);
 }
 
-function execPatt(request? : any) {
+async function execPatt(request? : any) {
     if (request) {
         //console.log('EP ' + JSON.stringify(request));
-        dp.pokeyPokey(request);
+        await dp.pokeyPokey(request);
         return;
     }
     //console.log('EP NONE');
     const newid = uuidv4();
-    dp.pokeyPokey({opid: newid});
     vscode.commands.executeCommand('vscode.previewHtml', "acsconfigure://operations/" + newid, 2 /* columns start at 1 */, "Connect");
+    await dp.pokeyPokey({opid: newid});
 }
