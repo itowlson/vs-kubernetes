@@ -26,11 +26,23 @@ export class DocMe implements vscode.TextDocumentContentProvider {
         switch (trackedops[opid].stage) {
             case OpStage.PromptForSubs:
                 const subs = await acsSubs();
-                return await promptForSubs(opid, subs);
+                if (subs.succeeded) {
+                    return await promptForSubs(opid, subs.result);
+                } else {
+                    return notifyError("listing subscriptions", subs.error);
+                }
             case OpStage.PromptForCluster:
-                await login(trackedops[opid].sub);
-                const clusters = await acsClusters();
-                return await promptForCluster(opid, clusters);
+                const l = await login(trackedops[opid].sub);
+                if (l.succeeded) {
+                    const clusters = await acsClusters();
+                    if (clusters.succeeded) {
+                        return await promptForCluster(opid, clusters.result);
+                    } else {
+                        return notifyError("listing clusters", clusters.error);
+                    }
+                } else {
+                    return notifyError("logging into subscription", l.error);
+                }
             case OpStage.Done:
                 const clusInfo : string = trackedops[opid].cluster;
                 const parsept = clusInfo.indexOf('/');
@@ -42,9 +54,13 @@ export class DocMe implements vscode.TextDocumentContentProvider {
     }
 }
 
-async function login(sub : string) {
+async function login(sub : string) : Promise<Errorable<boolean>> {
     //console.log('connecting to ' + sub);
-    await shell.exec('az account set --subscription "' + sub + '"');
+    const sr = await shell.exec('az account set --subscription "' + sub + '"');
+    if (sr.code === 0 && !sr.stderr) {
+        return { succeeded: true, result: true, error: '' };        
+    }
+    return { succeeded: false, result: false, error: sr.stderr };        
 }
 
 function advance(request: any) {
@@ -83,17 +99,17 @@ let trackedops : any = {};
 
 // TODO: deduplicate with acs module
 // actually don't need to dedupe as this would replace the acs module
-async function acsSubs() : Promise<string[]> {
+async function acsSubs() : Promise<Errorable<string[]>> {
     const sr = await shell.exec("az account list --all --query [*].name -ojson")
     if (sr.code === 0 && !sr.stderr) {
         const accountNames = JSON.parse(sr.stdout);
-        return accountNames;
+        return {succeeded: true, result: accountNames, error: '' };
     } else {
-        throw sr.stderr;
+        return { succeeded: false, result: undefined, error: sr.stderr };
     }
 }
 
-async function acsClusters() : Promise<any[]> {
+async function acsClusters() : Promise<Errorable<any[]>> {
     let query = '[?orchestratorProfile.orchestratorType==`Kubernetes`].{name:name,resourceGroup:resourceGroup}';
     if (shell.isUnix()) {
         query = `'${query}'`;
@@ -101,10 +117,16 @@ async function acsClusters() : Promise<any[]> {
     const sr = await shell.exec(`az acs list --query ${query} -ojson`);
     if (sr.code === 0 && !sr.stderr) {
         const clusters = JSON.parse(sr.stdout);
-        return clusters;
+        return { succeeded: true, result: clusters, error: '' };
     } else {
-        throw sr.stderr;
+        return { succeeded: false, result: undefined, error: sr.stderr };
     }
+}
+
+interface Errorable<T> {
+    succeeded : boolean;
+    result : T;
+    error : string;
 }
 
 async function acsGetAllTheThings(clusterName : string, clusterGroup : string) : Promise<any> {
@@ -152,6 +174,43 @@ async function acsGetAllTheThings(clusterName : string, clusterGroup : string) :
     }
 
     return result;
+}
+
+function notifyError(actionDescription: string, error: string) : string {
+    return `
+<h1>Error ${actionDescription}</h1>
+
+<style>
+.vscode-light .error {
+    color: red;
+    font-weight: bold;
+}
+
+.vscode-dark .error {
+    color: red;
+    font-weight: bold;
+}
+
+.vscode-light a {
+    color: navy;
+}
+
+.vscode-dark a {
+    color: azure;
+}
+</style>
+
+<p><span class='error'>The Azure command line failed.</span>  See below for the error message.  You may need to:</p>
+<ul>
+<li>Log into the Azure CLI (run az login in the terminal)</li>
+<li>Install the Azure CLI <a href='https://docs.microsoft.com/cli/azure/install-azure-cli'>(see the instructions for your operating system)</a></li>
+<li>Configure Kubernetes from the command line using the az acs command</li>
+</ul>
+
+<p><b>Details</b></p>
+
+<p>${error}</p>
+`;
 }
 
 function promptForSubs(opid: string, subs: string[]) : string {
