@@ -1,34 +1,26 @@
 import * as vscode from 'vscode';
 import { shell } from './shell';
-//import * as acs from './acs';
 
 export class DocMe implements vscode.TextDocumentContentProvider {
 	private _onDidChange: vscode.EventEmitter<vscode.Uri> = new vscode.EventEmitter<vscode.Uri>();
 	readonly onDidChange: vscode.Event<vscode.Uri> = this._onDidChange.event;
 
     provideTextDocumentContent(uri: vscode.Uri, token: vscode.CancellationToken): vscode.ProviderResult<string> {
-        //console.log('PTDC ' + uri.path);
         return this.getContent(uri.path.substr(1));
     }
 
     async pokeyPokey(request : any) : Promise<void> {
-        //console.log('PP ' + opid);
         await advance(request);
         this._onDidChange.fire(vscode.Uri.parse("acsconfigure://operations/" + request.opid));  // okay so the URL needs to be the same (this is saying "the doc at URL blah has changed," not "refresh the document with the content of URL blah")
                                                         // so we need to figure out where state lives and how to pass it around
     }
 
     private async getContent(opid : string) : Promise<string> {
-        //console.log('GC ' + opid);
-
-        // the acs* calls should probably happen during pokeyPokey - getContent should only render the current state
-        // as it may be called again when reloading the window
         if (!trackedops[opid]) {
             return "<h1>Listing subscriptions</h1><p>Talking to Microsoft Azure - please wait...</p>";
         }
         switch (trackedops[opid].stage) {
             case OpStage.PromptForSubs:
-                // const subs = await acsSubs();
                 const subs = trackedops[opid].state;
                 if (subs.succeeded) {
                     return await promptForSubs(opid, subs.result);
@@ -42,31 +34,14 @@ export class DocMe implements vscode.TextDocumentContentProvider {
                 } else {
                     return notifyError(trackedops[opid].actionDescription, c.error);
                 }
-                // const l = await login(trackedops[opid].sub);
-                // if (l.succeeded) {
-                //     const clusters = await acsClusters();
-                //     if (clusters.succeeded) {
-                //         return await promptForCluster(opid, clusters.result);
-                //     } else {
-                //         return notifyError("listing clusters", clusters.error);
-                //     }
-                // } else {
-                //     return notifyError("logging into subscription", l.error);
-                // }
             case OpStage.Done:
-                // const clusInfo : string = trackedops[opid].cluster;
-                // const parsept = clusInfo.indexOf('/');
-                // const rg = clusInfo.substr(0, parsept);
-                // const clusname = clusInfo.substr(parsept + 1);
-                // const result = await acsGetAllTheThings(clusname, rg);
-                const result = trackedops[opid].state.result;
+                const result = trackedops[opid].state;
                 return notifyResult(result);
         }
     }
 }
 
 async function login(sub : string) : Promise<Errorable<boolean>> {
-    //console.log('connecting to ' + sub);
     const sr = await shell.exec('az account set --subscription "' + sub + '"');
     if (sr.code === 0 && !sr.stderr) {
         return { succeeded: true, result: true, error: '' };        
@@ -77,12 +52,10 @@ async function login(sub : string) : Promise<Errorable<boolean>> {
 async function advance(request: any) : Promise<void> {
     const opid : string = request.opid;
     let currentOp = trackedops[opid];
-    //console.log(currentStage || "NEW NEW NEW");
     if (currentOp) {
         let currentStage = currentOp.stage;
         switch (currentStage) {
             case OpStage.PromptForSubs:
-                //trackedops[opid].sub = request.sub;
                 const l = await login(request.sub);
                 if (l.succeeded) {
                     const clusters = await acsClusters();
@@ -92,8 +65,6 @@ async function advance(request: any) : Promise<void> {
                 }
                 break;
             case OpStage.PromptForCluster:
-                //trackedops[opid].cluster = request.cluster;  // in form rg/clus
-                //currentStage = OpStage.Done;
                 const clusInfo : string = request.cluster;
                 const parsept = clusInfo.indexOf('/');
                 const rg = clusInfo.substr(0, parsept);
@@ -104,13 +75,10 @@ async function advance(request: any) : Promise<void> {
             case OpStage.Done:
                 throw "shouldn't have gone past here";
         }
-        //trackedops[opid].stage = currentStage;
     } else {
         const subs = await acsSubs();
         trackedops[opid] = { stage: OpStage.PromptForSubs, actionDescription: "listing subscriptions", state: subs };
     }
-
-    //console.log(currentStage);
 }
 
 enum OpStage {
@@ -127,8 +95,6 @@ interface OpState {
 
 let trackedops : any = {};
 
-// TODO: deduplicate with acs module
-// actually don't need to dedupe as this would replace the acs module
 async function acsSubs() : Promise<Errorable<string[]>> {
     const sr = await shell.exec("az account list --all --query [*].name -ojson")
     if (sr.code === 0 && !sr.stderr) {
@@ -262,7 +228,7 @@ function promptForSubs(opid: string, subs: string[]) : string {
 
 <script>
 function promptWait() {
-    document.getElementById('h').innerText = 'Please wait...';
+    document.getElementById('h').innerText = 'Listing clusters';
     document.getElementById('content').innerText = '';
 }
 function selchanged() {
@@ -305,7 +271,7 @@ function promptForCluster(opid: string, clusters: any[]) : string {
 
 <script>
 function promptWait() {
-    document.getElementById('h').innerText = 'Please wait...';
+    document.getElementById('h').innerText = 'Configuring';
     document.getElementById('content').innerText = '';
 }
 function selchanged() {
@@ -379,36 +345,3 @@ ${getCredsResultHtml}
 </div>
 `;
 }
-
-// function miracleHtml(subs: string[], someUriStr: string, cmd?: string, argstr?: string) : string {
-//     const subopts = subs.map((s) => `<option>${s}</option>`);
-//     const someUri = vscode.Uri.parse(someUriStr);
-//     const argex = argstr ? ('?' + JSON.stringify(argstr)) : '';
-//     const nextUri = cmd ?
-//         encodeURI(cmd + argex) : //encodeURI(cmd) <- not necessary I think unless it has args that need encoding :
-//         encodeURI('command:vscode.previewHtml?' + JSON.stringify(someUri));  // TODO: this spawns a new preview window
-//     return `
-// <h1 id='h'>We're on the way to ${someUriStr}</h1>
-
-// <script>
-// /*
-// function fie() {
-//     //document.getElementById('h').innerText = 'Fie-ing';
-//     window.location.href = '${nextUri}';
-//     //document.getElementById('h').innerText = window.location.href;
-// }
-// */
-// </script>
-
-// <p>
-// Azure subscription: <select>
-// ${subopts}
-// </select>
-// </p>
-
-// <p>
-// <a href='${nextUri}'>ACS ME!!!</a>
-// <!-- doesn't seem to work: <input type='button' value='ACS Me' onclick='fie()'> -->
-// </p>
-// `;
-// }
