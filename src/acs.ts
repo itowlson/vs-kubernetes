@@ -1,9 +1,211 @@
 'use strict';
 
-import { QuickPickItem } from 'vscode';
+import { QuickPickItem, TextDocumentContentProvider, Uri, EventEmitter, Event, ProviderResult, CancellationToken } from 'vscode';
 import { host } from './host';
 import { shell } from './shell';
 import { fs } from './fs';
+
+export const uriScheme : string = "acsconfigure";
+
+export function operationUri(operationId: string) : Uri {
+    return Uri.parse(`${uriScheme}://operations/${operationId}`);
+}
+
+export function uiProvider() : TextDocumentContentProvider & Advanceable {
+    return new UIProvider();
+}
+
+export interface Advanceable {
+    start(operationId: string) : void;
+    next(request: UIRequest): Promise<void>;
+}
+
+interface Errorable<T> {
+    readonly succeeded: boolean;
+    readonly result: T;
+    readonly error: string;
+}
+
+export interface UIRequest {
+    readonly operationId: string;
+    readonly requestData: any;
+}
+
+interface StageData {
+    readonly actionDescription: string;
+    readonly result: Errorable<any>;
+}
+
+interface OperationState {
+    readonly stage: OperationStage;
+    readonly last: StageData;
+}
+
+enum OperationStage {
+    Initial,
+    PromptForSubscription,
+    PromptForCluster,
+    Complete,
+}
+
+class OperationMap {
+
+    private operations: any = {};
+
+    set(operationId: string, operationState: OperationState) {
+        this.operations[operationId] = operationState;
+    }
+
+    get(operationId: string) : OperationState {
+        return this.operations[operationId];
+    }
+
+}
+
+class UIProvider implements TextDocumentContentProvider, Advanceable {
+
+	private _onDidChange: EventEmitter<Uri> = new EventEmitter<Uri>();
+    readonly onDidChange: Event<Uri> = this._onDidChange.event;
+
+    private operations: OperationMap = new OperationMap;
+
+    provideTextDocumentContent(uri: Uri, token: CancellationToken) : ProviderResult<string> {
+        const operationId = uri.path.substr(1);
+        const operationState = this.operations.get(operationId);
+        return render(operationId, operationState);
+    }
+
+    start(operationId: string): void {
+        const initialStage = {
+            stage: OperationStage.Initial,
+            last: {
+                actionDescription: '',
+                result: { succeeded: true, result: null, error: '' }
+            }
+        };
+        this.operations.set(operationId, initialStage);
+        this._onDidChange.fire(operationUri(operationId));
+    }
+
+    async next(request: UIRequest): Promise<void> {
+        const operationId = request.operationId;
+        const sourceState = this.operations.get(operationId);
+        const result = await next(sourceState);
+        this.operations.set(operationId, result);
+        this._onDidChange.fire(operationUri(operationId));
+    }
+}
+
+async function next(sourceState: OperationState) : Promise<OperationState> {
+    switch (sourceState.stage) {
+        case OperationStage.Initial:
+            return {
+                last: await getSubscriptionList(),
+                stage: OperationStage.PromptForSubscription
+            };
+        case OperationStage.PromptForSubscription:
+            return {
+                last: await getClusterList(),
+                stage: OperationStage.PromptForCluster
+            };
+        case OperationStage.PromptForCluster:
+            return {
+                last: await configureCluster(),
+                stage: OperationStage.Complete
+            };
+        default:
+            return {
+                stage: sourceState.stage,
+                last: sourceState.last
+            };
+    }
+}
+
+async function getSubscriptionList() : Promise<StageData> {
+    // check for prerequisites
+    // list subs
+    return {
+        actionDescription: 'listing subscriptions',
+        result: { succeeded: true, result: [ 'Sub1', 'Sub2' ], error: '' }
+    };
+}
+
+async function getClusterList() : Promise<StageData> {
+    // check login status
+    // list clusters
+    return {
+        actionDescription: 'listing clusters',
+        result: { succeeded: true, result: [ 'Clus1', 'Clus2' ], error: '' }
+    };
+}
+
+async function configureCluster() : Promise<StageData> {
+    // download kubectl
+    // get credentials
+    return {
+        actionDescription: 'configuring Kubernetes',
+        result: { succeeded: true, result: '', error: '' }
+    };
+}
+
+function render(operationId: string, state: OperationState) : string {
+    switch (state.stage) {
+        case OperationStage.Initial:
+             return renderInitial();
+        case OperationStage.PromptForSubscription:
+            return renderPromptForSubscription(operationId, state.last);
+        case OperationStage.PromptForCluster:
+            return renderPromptForCluster(operationId, state.last);
+        case OperationStage.Complete:
+            return renderComplete(state.last);
+        default:
+            return internalError(`Unknown operation stage ${state.stage}`);
+    }
+}
+
+// TODO: Using HTML comments to test that the correct rendering was invoked.
+// Would be 'purer' to allow the tests to inject fake rendering methods, as this
+// would also allow us to check the data being passed into the rendering method...
+
+function renderInitial() : string {
+    return '<!-- Initial --><h1>Listing subscriptions</h1><p>Please wait...</p>';
+}
+
+function renderPromptForSubscription(operationId: string, last: StageData) : string {
+    if (last.result.succeeded) {
+        const subscriptions : string[] = last.result.result;
+        return `<!-- PromptForSubscription --><h1>Choose subscription</h1><p>${subscriptions.join(",")}</p><p><a href="${advanceUri(operationId, '')}">Next</a></p>`;
+    }
+    return `<!-- PromptForSubscription --><h1>Error ${last.actionDescription}</h1><p>${last.result.error}</p>`;
+}
+
+function renderPromptForCluster(operationId: string, last: StageData) : string {
+    if (last.result.succeeded) {
+        const clusters : string[] = last.result.result;
+        return `<!-- PromptForCluster --><h1>Choose cluster</h1><p>${clusters.join(",")}</p><p><a href="${advanceUri(operationId, '')}">Next</a></p>`;
+    }
+    return `<!-- PromptForCluster --><h1>Error ${last.actionDescription}</h1><p>${last.result.error}</p>`;
+}
+
+function renderComplete(last: StageData) : string {
+    if (last.result.succeeded) {
+        return `<!-- Complete --><h1>Configuration complete</h1><p>More info here</p>`;
+    }
+    return `<!-- Complete --><h1>Error ${last.actionDescription}</h1><p>${last.result.error}</p>`;
+}
+
+function internalError(error: string) : string {
+    return `<h1>Internal extension error</h1><p>An internal error occurred in the vs-kubernetes extension.  This is not an Azure or Kubernetes issue.  Please report error text '${error}' to the extension authors.</p>`
+}
+
+function advanceUri(operationId: string, requestData: any) : string {
+    const request : UIRequest = {
+        operationId: operationId,
+        requestData: requestData
+    };
+    const uri = encodeURI("command:extension.vsKubernetesConfigureFromAcs?" + JSON.stringify(request));
+    return uri;
+}
 
 export function verifyPrerequisites(onSatisfied, onFailure) {
     const errors = new Array<String>();
