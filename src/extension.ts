@@ -78,7 +78,7 @@ export function activate(context) {
 // this method is called when your extension is deactivated
 export const deactivate = () => { };
 
-function providerHover(document, position, token, syntax) : Promise<vscode.Hover> {
+function provideHover(document, position, token, syntax) : Promise<vscode.Hover> {
     return new Promise(async (resolve) => {
         if (!explainActive) {
             resolve(null);
@@ -129,7 +129,7 @@ function provideHoverJson(document, position, token) {
         findParent: (document, parentLine) => findParentJson(document, parentLine - 1)
     };
 
-    return providerHover(document, position, token, syntax);
+    return provideHover(document, position, token, syntax);
 }
 
 function provideHoverYaml(document, position, token) {
@@ -138,7 +138,7 @@ function provideHoverYaml(document, position, token) {
         findParent: (document, parentLine) => findParentYaml(document, parentLine)
     };
 
-    return providerHover(document, position, token, syntax);
+    return provideHover(document, position, token, syntax);
 }
 
 function findProperty(line) {
