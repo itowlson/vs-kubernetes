@@ -78,7 +78,7 @@ export function activate(context) {
 // this method is called when your extension is deactivated
 export const deactivate = () => { };
 
-function providerHover(document, position, token, syntax) {
+function providerHover(document, position, token, syntax) : Promise<vscode.Hover> {
     return new Promise(async (resolve) => {
         if (!explainActive) {
             resolve(null);
