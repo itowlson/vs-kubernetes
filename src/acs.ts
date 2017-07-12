@@ -1,9 +1,85 @@
 'use strict';
 
-import { QuickPickItem } from 'vscode';
+import { QuickPickItem, TextDocumentContentProvider, Uri, EventEmitter, Event, ProviderResult, CancellationToken } from 'vscode';
 import { host } from './host';
 import { shell } from './shell';
 import { fs } from './fs';
+
+export const uriScheme : string = "acsconfigure";
+
+export function operationUri(operationId: string) : Uri {
+    return Uri.parse(`${uriScheme}://operations/${operationId}`);
+}
+
+export function uiProvider() : TextDocumentContentProvider & Advanceable {
+    return new UIProvider();
+}
+
+export interface Advanceable {
+    start(operationId: string) : void;
+    next(request: UIRequest): Promise<void>;
+}
+
+export interface Errorable<T> {
+    readonly succeeded: boolean;
+    readonly result: T;
+    readonly error: string;
+}
+
+export interface UIRequest {
+    readonly operationId: string;
+    readonly requestData: any;
+}
+
+export interface OperationStatus {
+    readonly stage: OperationStage;
+    readonly lastActionDescription: string;
+    readonly lastResult: Errorable<any>;
+}
+
+enum OperationStage {
+    Initial,
+    CheckedPrerequisites,
+    PromptedForSubscription,
+    PromptedForCluster,
+    Complete,
+}
+
+class OperationMap {
+
+    private operations: any = {};
+
+    set(operationId: string, operationContext: OperationStatus) {
+        this.operations[operationId] = operationContext;
+    }
+
+    get(operationId: string) : OperationStatus {
+        return this.operations[operationId];
+    }
+
+}
+
+class UIProvider implements TextDocumentContentProvider, Advanceable {
+
+	private _onDidChange: EventEmitter<Uri> = new EventEmitter<Uri>();
+    readonly onDidChange: Event<Uri> = this._onDidChange.event;
+
+    private operations: OperationMap = new OperationMap;
+
+    provideTextDocumentContent(uri: Uri, token: CancellationToken) : ProviderResult<string> {
+        return uri.toString() + ' is at stage ' + this.operations.get(uri.path.substr(1)).stage;
+    }
+
+    start(operationId: string): void {
+        this.operations.set(operationId, { stage: OperationStage.Initial, lastActionDescription: '', lastResult: { succeeded: true, result: null, error: '' } });
+        this._onDidChange.fire(operationUri(operationId));
+    }
+
+    next(request: UIRequest): Promise<void> {
+        this._onDidChange.fire(operationUri(request.operationId));
+        return undefined;
+    }
+}
 
 export function verifyPrerequisites(onSatisfied, onFailure) {
     const errors = new Array<String>();

@@ -13,6 +13,7 @@ import { fs } from './fs';
 import * as yaml from 'js-yaml';
 import * as dockerfileParse from 'dockerfile-parse';
 import * as tmp from 'tmp';
+import * as uuid from 'uuid';
 
 // Internal dependencies
 import { host } from './host';
@@ -31,6 +32,7 @@ let swaggerSpecPromise = null;
 
 const kubectl = kubectlCreate(host, fs, shell);
 const draft = draftCreate(host, fs, shell);
+const acsui = acs.uiProvider();
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
@@ -63,6 +65,7 @@ export function activate(context) {
         vscode.commands.registerCommand('extension.vsKubernetesDraftCreate', execDraftCreate),
         vscode.commands.registerCommand('extension.vsKubernetesDraftUp', execDraftUp),
         vscode.commands.registerCommand('extension.vsKubernetesRefreshExplorer', () => treeProvider.refresh()),
+        vscode.workspace.registerTextDocumentContentProvider(acs.uriScheme, acsui),
         vscode.languages.registerHoverProvider(
             { language: 'json', scheme: 'file' },
             { provideHover: provideHoverJson }
@@ -1155,7 +1158,17 @@ function removeDebugKubernetes() {
     });
 }
 
-function configureFromAcsKubernetes() {
+async function configureFromAcsKubernetes(request? : acs.UIRequest) {
+    if (request) {
+        await acsui.next(request);
+    } else {
+        const newId : string = uuid.v4();
+        acsui.start(newId);
+        vscode.commands.executeCommand('vscode.previewHtml', acs.operationUri(newId), 2, "Configure Kubernetes");
+        await acsui.next({ operationId: newId, requestData: undefined });
+    }
+
+
     acsShowProgress("Verifying prerequisites...");
     acs.verifyPrerequisites(
         () => {
