@@ -31,7 +31,7 @@ export interface UIRequest {
     readonly requestData: any;
 }
 
-export interface OperationStatus {
+export interface OperationState {
     readonly stage: OperationStage;
     readonly lastActionDescription: string;
     readonly lastResult: Errorable<any>;
@@ -49,11 +49,11 @@ class OperationMap {
 
     private operations: any = {};
 
-    set(operationId: string, operationContext: OperationStatus) {
-        this.operations[operationId] = operationContext;
+    set(operationId: string, operationState: OperationState) {
+        this.operations[operationId] = operationState;
     }
 
-    get(operationId: string) : OperationStatus {
+    get(operationId: string) : OperationState {
         return this.operations[operationId];
     }
 
@@ -67,18 +67,36 @@ class UIProvider implements TextDocumentContentProvider, Advanceable {
     private operations: OperationMap = new OperationMap;
 
     provideTextDocumentContent(uri: Uri, token: CancellationToken) : ProviderResult<string> {
-        return uri.toString() + ' is at stage ' + this.operations.get(uri.path.substr(1)).stage;
+        const operationId = uri.path.substr(1);
+        return operationId + ' is at stage ' + this.operations.get(operationId).stage;
     }
 
     start(operationId: string): void {
-        this.operations.set(operationId, { stage: OperationStage.Initial, lastActionDescription: '', lastResult: { succeeded: true, result: null, error: '' } });
+        const initialStage = {
+            stage: OperationStage.Initial,
+            lastActionDescription: '',
+            lastResult: { succeeded: true, result: null, error: '' }
+        };
+        this.operations.set(operationId, initialStage);
         this._onDidChange.fire(operationUri(operationId));
     }
 
-    next(request: UIRequest): Promise<void> {
-        this._onDidChange.fire(operationUri(request.operationId));
-        return undefined;
+    async next(request: UIRequest): Promise<void> {
+        const operationId = request.operationId;
+        const sourceState = this.operations.get(operationId);
+        const result = await next(sourceState);
+        this.operations.set(operationId, result);
+        this._onDidChange.fire(operationUri(operationId));
     }
+}
+
+async function next(sourceState: OperationState) : Promise<OperationState> {
+    const resultState = {
+        stage: sourceState.stage + 1,
+        lastActionDescription: sourceState.lastActionDescription,
+        lastResult: sourceState.lastResult
+    };
+    return resultState;
 }
 
 export function verifyPrerequisites(onSatisfied, onFailure) {
