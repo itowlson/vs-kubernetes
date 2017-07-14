@@ -20,7 +20,7 @@ export interface Advanceable {
     next(request: UIRequest): Promise<void>;
 }
 
-export interface Errorable<T> {
+interface Errorable<T> {
     readonly succeeded: boolean;
     readonly result: T;
     readonly error: string;
@@ -31,17 +31,20 @@ export interface UIRequest {
     readonly requestData: any;
 }
 
-export interface OperationState {
+interface StageData {
+    readonly actionDescription: string;
+    readonly result: Errorable<any>;
+}
+
+interface OperationState {
     readonly stage: OperationStage;
-    readonly lastActionDescription: string;
-    readonly lastResult: Errorable<any>;
+    readonly last: StageData;
 }
 
 enum OperationStage {
     Initial,
-    CheckedPrerequisites,
-    PromptedForSubscription,
-    PromptedForCluster,
+    PromptForSubscription,
+    PromptForCluster,
     Complete,
 }
 
@@ -68,14 +71,17 @@ class UIProvider implements TextDocumentContentProvider, Advanceable {
 
     provideTextDocumentContent(uri: Uri, token: CancellationToken) : ProviderResult<string> {
         const operationId = uri.path.substr(1);
-        return operationId + ' is at stage ' + this.operations.get(operationId).stage;
+        const operationState = this.operations.get(operationId);
+        return render(operationId, operationState);
     }
 
     start(operationId: string): void {
         const initialStage = {
             stage: OperationStage.Initial,
-            lastActionDescription: '',
-            lastResult: { succeeded: true, result: null, error: '' }
+            last: {
+                actionDescription: '',
+                result: { succeeded: true, result: null, error: '' }
+            }
         };
         this.operations.set(operationId, initialStage);
         this._onDidChange.fire(operationUri(operationId));
@@ -91,12 +97,114 @@ class UIProvider implements TextDocumentContentProvider, Advanceable {
 }
 
 async function next(sourceState: OperationState) : Promise<OperationState> {
-    const resultState = {
-        stage: sourceState.stage + 1,
-        lastActionDescription: sourceState.lastActionDescription,
-        lastResult: sourceState.lastResult
+    switch (sourceState.stage) {
+        case OperationStage.Initial:
+            return {
+                last: await getSubscriptionList(),
+                stage: OperationStage.PromptForSubscription
+            };
+        case OperationStage.PromptForSubscription:
+            return {
+                last: await getClusterList(),
+                stage: OperationStage.PromptForCluster
+            };
+        case OperationStage.PromptForCluster:
+            return {
+                last: await configureCluster(),
+                stage: OperationStage.Complete
+            };
+        default:
+            return {
+                stage: sourceState.stage,
+                last: sourceState.last
+            };
+    }
+}
+
+async function getSubscriptionList() : Promise<StageData> {
+    // check for prerequisites
+    // list subs
+    return {
+        actionDescription: 'listing subscriptions',
+        result: { succeeded: true, result: [ 'Sub1', 'Sub2' ], error: '' }
     };
-    return resultState;
+}
+
+async function getClusterList() : Promise<StageData> {
+    // check login status
+    // list clusters
+    return {
+        actionDescription: 'listing clusters',
+        result: { succeeded: true, result: [ 'Clus1', 'Clus2' ], error: '' }
+    };
+}
+
+async function configureCluster() : Promise<StageData> {
+    // download kubectl
+    // get credentials
+    return {
+        actionDescription: 'configuring Kubernetes',
+        result: { succeeded: true, result: '', error: '' }
+    };
+}
+
+function render(operationId: string, state: OperationState) : string {
+    switch (state.stage) {
+        case OperationStage.Initial:
+             return renderInitial();
+        case OperationStage.PromptForSubscription:
+            return renderPromptForSubscription(operationId, state.last);
+        case OperationStage.PromptForCluster:
+            return renderPromptForCluster(operationId, state.last);
+        case OperationStage.Complete:
+            return renderComplete(state.last);
+        default:
+            return internalError(`Unknown operation stage ${state.stage}`);
+    }
+}
+
+// TODO: Using HTML comments to test that the correct rendering was invoked.
+// Would be 'purer' to allow the tests to inject fake rendering methods, as this
+// would also allow us to check the data being passed into the rendering method...
+
+function renderInitial() : string {
+    return '<!-- Initial --><h1>Listing subscriptions</h1><p>Please wait...</p>';
+}
+
+function renderPromptForSubscription(operationId: string, last: StageData) : string {
+    if (last.result.succeeded) {
+        const subscriptions : string[] = last.result.result;
+        return `<!-- PromptForSubscription --><h1>Choose subscription</h1><p>${subscriptions.join(",")}</p><p><a href="${advanceUri(operationId, '')}">Next</a></p>`;
+    }
+    return `<!-- PromptForSubscription --><h1>Error ${last.actionDescription}</h1><p>${last.result.error}</p>`;
+}
+
+function renderPromptForCluster(operationId: string, last: StageData) : string {
+    if (last.result.succeeded) {
+        const clusters : string[] = last.result.result;
+        return `<!-- PromptForCluster --><h1>Choose cluster</h1><p>${clusters.join(",")}</p><p><a href="${advanceUri(operationId, '')}">Next</a></p>`;
+    }
+    return `<!-- PromptForCluster --><h1>Error ${last.actionDescription}</h1><p>${last.result.error}</p>`;
+}
+
+function renderComplete(last: StageData) : string {
+    if (last.result.succeeded) {
+        return `<!-- Complete --><h1>Configuration complete</h1><p>More info here</p>`;
+    }
+    return `<!-- Complete --><h1>Error ${last.actionDescription}</h1><p>${last.result.error}</p>`;
+}
+
+function internalError(error: string) : string {
+    return `<h1>Internal extension error</h1><p>An internal error occurred in the vs-kubernetes extension.  This is not an Azure or Kubernetes issue.  Please report error text '${error}' to the extension authors.</p>`
+}
+
+function advanceUri(operationId: string, requestData: any) : string {
+    const request : UIRequest = {
+        operationId: operationId,
+        requestData: requestData
+    };
+    const uri = encodeURI("command:extension.vsKubernetesConfigureFromAcs?" + JSON.stringify(request));
+    return uri;
 }
 
 export function verifyPrerequisites(onSatisfied, onFailure) {

@@ -1168,20 +1168,19 @@ async function configureFromAcsKubernetes(request? : acs.UIRequest) {
         await acsui.next({ operationId: newId, requestData: undefined });
     }
 
-
-    acsShowProgress("Verifying prerequisites...");
-    acs.verifyPrerequisites(
-        () => {
-            acsSelectSubscription();
-        },
-        (errs : Array<string>) => {
-            if (errs.length === 1) {
-                acsShowError('Missing prerequisite for Kubernetes configuration. ' + errs[0], errs[0]);
-            } else {
-                acsShowError('Missing prerequisites for Kubernetes configuration. See Output window for details.', errs.join('\n'));
-            }
-        }
-    );
+    // acsShowProgress("Verifying prerequisites...");
+    // acs.verifyPrerequisites(
+    //     () => {
+    //         acsSelectSubscription();
+    //     },
+    //     (errs : Array<string>) => {
+    //         if (errs.length === 1) {
+    //             acsShowError('Missing prerequisite for Kubernetes configuration. ' + errs[0], errs[0]);
+    //         } else {
+    //             acsShowError('Missing prerequisites for Kubernetes configuration. See Output window for details.', errs.join('\n'));
+    //         }
+    //     }
+    // );
 }
 
 function acsSelectSubscription() {
