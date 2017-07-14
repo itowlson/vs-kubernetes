@@ -23,7 +23,7 @@ export interface Advanceable {
 interface Errorable<T> {
     readonly succeeded: boolean;
     readonly result: T;
-    readonly error: string;
+    readonly error: string[];
 }
 
 export interface UIRequest {
@@ -80,7 +80,7 @@ class UIProvider implements TextDocumentContentProvider, Advanceable {
             stage: OperationStage.Initial,
             last: {
                 actionDescription: '',
-                result: { succeeded: true, result: null, error: '' }
+                result: { succeeded: true, result: null, error: [] }
             }
         };
         this.operations.set(operationId, initialStage);
@@ -123,10 +123,19 @@ async function next(sourceState: OperationState) : Promise<OperationState> {
 
 async function getSubscriptionList() : Promise<StageData> {
     // check for prerequisites
+    // TODO: need to inject shell or this will foul up my unit tests
+    // const prerequisiteErrors = await verifyPrerequisitesAsync();
+    // if (prerequisiteErrors.length > 0) {
+    //     return {
+    //         actionDescription: 'checking prerequisites',
+    //         result: { succeeded: false, result: false, error: prerequisiteErrors }
+    //     }
+    // }
+
     // list subs
     return {
         actionDescription: 'listing subscriptions',
-        result: { succeeded: true, result: [ 'Sub1', 'Sub2' ], error: '' }
+        result: { succeeded: true, result: [ 'Sub1', 'Sub2' ], error: [] }
     };
 }
 
@@ -135,7 +144,7 @@ async function getClusterList() : Promise<StageData> {
     // list clusters
     return {
         actionDescription: 'listing clusters',
-        result: { succeeded: true, result: [ 'Clus1', 'Clus2' ], error: '' }
+        result: { succeeded: true, result: [ 'Clus1', 'Clus2' ], error: [] }
     };
 }
 
@@ -144,7 +153,7 @@ async function configureCluster() : Promise<StageData> {
     // get credentials
     return {
         actionDescription: 'configuring Kubernetes',
-        result: { succeeded: true, result: '', error: '' }
+        result: { succeeded: true, result: '', error: [] }
     };
 }
 
@@ -205,6 +214,19 @@ function advanceUri(operationId: string, requestData: any) : string {
     };
     const uri = encodeURI("command:extension.vsKubernetesConfigureFromAcs?" + JSON.stringify(request));
     return uri;
+}
+
+async function verifyPrerequisitesAsync() : Promise<string[]> {
+    const errors = new Array<string>();
+    
+    const sr = await shell.exec('az --help');
+    if (sr.code !== 0 || sr.stderr) {
+        errors.push('Azure CLI 2.0 not found - install Azure CLI 2.0 and log in');
+    }
+
+    prereqCheckSSHKeys(errors);
+
+    return errors;
 }
 
 export function verifyPrerequisites(onSatisfied, onFailure) {
