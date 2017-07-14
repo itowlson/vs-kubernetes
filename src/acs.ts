@@ -229,6 +229,17 @@ async function verifyPrerequisitesAsync() : Promise<string[]> {
     return errors;
 }
 
+async function listSubscriptionsAsync() : Promise<Errorable<string[]>> {
+    const sr = await shell.exec("az account list --all --query [*].name -ojson");
+    
+    if (sr.code === 0 && !sr.stderr) {  // az account list returns exit code 0 even if not logged in
+        const accountNames : string[] = JSON.parse(sr.stdout);
+        return { succeeded: true, result: accountNames, error: [] };
+    } else {
+        return { succeeded: false, result: [], error: [sr.stderr] };
+    }
+}
+
 export function verifyPrerequisites(onSatisfied, onFailure) {
     const errors = new Array<String>();
 
