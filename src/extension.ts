@@ -32,7 +32,7 @@ let swaggerSpecPromise = null;
 
 const kubectl = kubectlCreate(host, fs, shell);
 const draft = draftCreate(host, fs, shell);
-const acsui = acs.uiProvider();
+const acsui = acs.uiProvider(fs, shell);
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
@@ -1183,87 +1183,87 @@ async function configureFromAcsKubernetes(request? : acs.UIRequest) {
     // );
 }
 
-function acsSelectSubscription() {
-    acsShowProgress("Retrieving Azure subscriptions...");
-    acs.selectSubscription(
-        (subName) => {
-            acsSelectCluster(subName);
-        },
-        () => {
-            vscode.window.showInformationMessage('No Azure subscriptions.');
-        },
-        (err) => {
-            acsShowError('Unable to list Azure subscriptions. See Output window for error.', err);
-        }
-    );
-}
+// function acsSelectSubscription() {
+//     acsShowProgress("Retrieving Azure subscriptions...");
+//     acs.selectSubscription(
+//         (subName) => {
+//             acsSelectCluster(subName);
+//         },
+//         () => {
+//             vscode.window.showInformationMessage('No Azure subscriptions.');
+//         },
+//         (err) => {
+//             acsShowError('Unable to list Azure subscriptions. See Output window for error.', err);
+//         }
+//     );
+// }
 
-function acsSelectCluster(subName) {
-    acsShowProgress("Retrieving Azure Container Service Kubernetes clusters...");
-    acs.selectKubernetesClustersFromActiveSubscription(
-        (cluster) => {
-            acsInstallCli();
-            acsGetCredentials(cluster);
-        },
-        () => {
-            vscode.window.showInformationMessage('No Kubernetes clusters in subscription ' + subName);
-        },
-        (err) => {
-            acsShowError('Unable to select a Kubernetes cluster in ' + subName + '. See Output window for error.', err);
-         }
-     );
-}
+// function acsSelectCluster(subName) {
+//     acsShowProgress("Retrieving Azure Container Service Kubernetes clusters...");
+//     acs.selectKubernetesClustersFromActiveSubscription(
+//         (cluster) => {
+//             acsInstallCli();
+//             acsGetCredentials(cluster);
+//         },
+//         () => {
+//             vscode.window.showInformationMessage('No Kubernetes clusters in subscription ' + subName);
+//         },
+//         (err) => {
+//             acsShowError('Unable to select a Kubernetes cluster in ' + subName + '. See Output window for error.', err);
+//          }
+//      );
+// }
 
-function acsInstallCli() {
-    acsShowProgress("Downloading kubectl command line tool...");
-    acs.installCli(
-        (installLocation, onDefaultPath) => {
-            let message = 'kubectl installed.';
-            let details = 'kubectl installation location: ' + installLocation;
-            if (onDefaultPath) {
-                message = message + ' See Output window for details.';
-            } else {
-                message = message + ' See Output window for additional installation info.';
-                details = details + '\n***NOTE***: This location is not on your system PATH.\nAdd this directory to your path, or set the VS Code\n*vs-kubernetes.kubectl-path* config setting.';
-                acsShowOutput(details);
-            }
-            vscode.window.showInformationMessage(message);
-        },
-        (err) => {
-            acsShowError('Unable to download kubectl. See Output window for error.', err);
-        }
-    );
-}
+// function acsInstallCli() {
+//     acsShowProgress("Downloading kubectl command line tool...");
+//     acs.installCli(
+//         (installLocation, onDefaultPath) => {
+//             let message = 'kubectl installed.';
+//             let details = 'kubectl installation location: ' + installLocation;
+//             if (onDefaultPath) {
+//                 message = message + ' See Output window for details.';
+//             } else {
+//                 message = message + ' See Output window for additional installation info.';
+//                 details = details + '\n***NOTE***: This location is not on your system PATH.\nAdd this directory to your path, or set the VS Code\n*vs-kubernetes.kubectl-path* config setting.';
+//                 acsShowOutput(details);
+//             }
+//             vscode.window.showInformationMessage(message);
+//         },
+//         (err) => {
+//             acsShowError('Unable to download kubectl. See Output window for error.', err);
+//         }
+//     );
+// }
 
-function acsGetCredentials(cluster) {
-    acsShowProgress("Configuring Kubernetes credentials for " + cluster.name + "...");
-    acs.getCredentials(cluster,
-        () => {
-            vscode.window.showInformationMessage('Successfully configured kubectl with Azure Container Service cluster credentials.');
-        },
-        (err) => {
-            acsShowError('Unable to get Azure Container Service cluster credentials. See Output window for error.', err);
-        });
-}
+// function acsGetCredentials(cluster) {
+//     acsShowProgress("Configuring Kubernetes credentials for " + cluster.name + "...");
+//     acs.getCredentials(cluster,
+//         () => {
+//             vscode.window.showInformationMessage('Successfully configured kubectl with Azure Container Service cluster credentials.');
+//         },
+//         (err) => {
+//             acsShowError('Unable to get Azure Container Service cluster credentials. See Output window for error.', err);
+//         });
+// }
 
-function acsShowProgress(message) {
-    acsShowOutput(message);
-}
+// function acsShowProgress(message) {
+//     acsShowOutput(message);
+// }
 
-function acsShowError(message, err) {
-    vscode.window.showErrorMessage(message);
-    acsShowOutput(err);
-}
+// function acsShowError(message, err) {
+//     vscode.window.showErrorMessage(message);
+//     acsShowOutput(err);
+// }
 
-let _acsOutputChannel : vscode.OutputChannel = null;
+// let _acsOutputChannel : vscode.OutputChannel = null;
 
-function acsShowOutput(message) {
-    if (!_acsOutputChannel) {
-        _acsOutputChannel = vscode.window.createOutputChannel('Kubernetes Configure from ACS');
-    }
-    _acsOutputChannel.appendLine(message);
-    _acsOutputChannel.show();
-}
+// function acsShowOutput(message) {
+//     if (!_acsOutputChannel) {
+//         _acsOutputChannel = vscode.window.createOutputChannel('Kubernetes Configure from ACS');
+//     }
+//     _acsOutputChannel.appendLine(message);
+//     _acsOutputChannel.show();
+// }
 
 async function execDraftCreate() {
     if (vscode.workspace.rootPath === undefined) {
