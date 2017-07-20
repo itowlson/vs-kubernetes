@@ -1,9 +1,8 @@
 'use strict';
 
-import { QuickPickItem, TextDocumentContentProvider, Uri, EventEmitter, Event, ProviderResult, CancellationToken } from 'vscode';
-import { host } from './host';
-import { shell } from './shell';
-import { fs } from './fs';
+import { TextDocumentContentProvider, Uri, EventEmitter, Event, ProviderResult, CancellationToken } from 'vscode';
+import { Shell } from './shell';
+import { FS } from './fs';
 
 export const uriScheme : string = "acsconfigure";
 
@@ -11,8 +10,8 @@ export function operationUri(operationId: string) : Uri {
     return Uri.parse(`${uriScheme}://operations/${operationId}`);
 }
 
-export function uiProvider() : TextDocumentContentProvider & Advanceable {
-    return new UIProvider();
+export function uiProvider(fs: FS, shell: Shell) : TextDocumentContentProvider & Advanceable {
+    return new UIProvider(fs, shell);
 }
 
 export interface Advanceable {
@@ -62,7 +61,18 @@ class OperationMap {
 
 }
 
+interface Context {
+    readonly fs: FS;
+    readonly shell: Shell;
+}
+
 class UIProvider implements TextDocumentContentProvider, Advanceable {
+
+    private readonly context;
+
+    constructor(fs: FS, shell: Shell) {
+        this.context = { fs: fs, shell: shell };
+    }
 
 	private _onDidChange: EventEmitter<Uri> = new EventEmitter<Uri>();
     readonly onDidChange: Event<Uri> = this._onDidChange.event;
@@ -90,22 +100,23 @@ class UIProvider implements TextDocumentContentProvider, Advanceable {
     async next(request: UIRequest): Promise<void> {
         const operationId = request.operationId;
         const sourceState = this.operations.get(operationId);
-        const result = await next(sourceState);
+        const result = await next(this.context, sourceState, request.requestData);
         this.operations.set(operationId, result);
         this._onDidChange.fire(operationUri(operationId));
     }
 }
 
-async function next(sourceState: OperationState) : Promise<OperationState> {
+async function next(context: Context, sourceState: OperationState, requestData: any) : Promise<OperationState> {
     switch (sourceState.stage) {
         case OperationStage.Initial:
             return {
-                last: await getSubscriptionList(),
+                last: await getSubscriptionList(context),
                 stage: OperationStage.PromptForSubscription
             };
         case OperationStage.PromptForSubscription:
+            const selectedSubscription : string = requestData;
             return {
-                last: await getClusterList(),
+                last: await getClusterList(context, selectedSubscription),
                 stage: OperationStage.PromptForCluster
             };
         case OperationStage.PromptForCluster:
@@ -121,30 +132,39 @@ async function next(sourceState: OperationState) : Promise<OperationState> {
     }
 }
 
-async function getSubscriptionList() : Promise<StageData> {
+async function getSubscriptionList(context: Context) : Promise<StageData> {
     // check for prerequisites
-    // TODO: need to inject shell or this will foul up my unit tests
-    // const prerequisiteErrors = await verifyPrerequisitesAsync();
-    // if (prerequisiteErrors.length > 0) {
-    //     return {
-    //         actionDescription: 'checking prerequisites',
-    //         result: { succeeded: false, result: false, error: prerequisiteErrors }
-    //     }
-    // }
+    const prerequisiteErrors = await verifyPrerequisitesAsync(context);
+    if (prerequisiteErrors.length > 0) {
+        return {
+            actionDescription: 'checking prerequisites',
+            result: { succeeded: false, result: false, error: prerequisiteErrors }
+        }
+    }
 
     // list subs
+    const subscriptions = await listSubscriptionsAsync(context);
     return {
         actionDescription: 'listing subscriptions',
-        result: { succeeded: true, result: [ 'Sub1', 'Sub2' ], error: [] }
+        result: subscriptions
     };
 }
 
-async function getClusterList() : Promise<StageData> {
-    // check login status
+async function getClusterList(context: Context, subscription: string) : Promise<StageData> {
+    // log in
+    const login = await loginAsync(context, subscription);
+    if (!login.succeeded) {
+        return {
+            actionDescription: 'logging into subscriptin',
+            result: login
+        };
+    }
+
     // list clusters
+    const clusters = await listClustersAsync(context);
     return {
         actionDescription: 'listing clusters',
-        result: { succeeded: true, result: [ 'Clus1', 'Clus2' ], error: [] }
+        result: clusters
     };
 }
 
@@ -216,21 +236,21 @@ function advanceUri(operationId: string, requestData: any) : string {
     return uri;
 }
 
-async function verifyPrerequisitesAsync() : Promise<string[]> {
+async function verifyPrerequisitesAsync(context: Context) : Promise<string[]> {
     const errors = new Array<string>();
     
-    const sr = await shell.exec('az --help');
+    const sr = await context.shell.exec('az --help');
     if (sr.code !== 0 || sr.stderr) {
         errors.push('Azure CLI 2.0 not found - install Azure CLI 2.0 and log in');
     }
 
-    prereqCheckSSHKeys(errors);
+    prereqCheckSSHKeys(context, errors);
 
     return errors;
 }
 
-async function listSubscriptionsAsync() : Promise<Errorable<string[]>> {
-    const sr = await shell.exec("az account list --all --query [*].name -ojson");
+async function listSubscriptionsAsync(context: Context) : Promise<Errorable<string[]>> {
+    const sr = await context.shell.exec("az account list --all --query [*].name -ojson");
     
     if (sr.code === 0 && !sr.stderr) {  // az account list returns exit code 0 even if not logged in
         const accountNames : string[] = JSON.parse(sr.stdout);
@@ -240,163 +260,189 @@ async function listSubscriptionsAsync() : Promise<Errorable<string[]>> {
     }
 }
 
-export function verifyPrerequisites(onSatisfied, onFailure) {
-    const errors = new Array<String>();
+async function loginAsync(context: Context, subscription: string) : Promise<Errorable<void>> {
+    const sr = await context.shell.exec(`az account set --subscription "${subscription}"`);
 
-    shell.exec('az --help').then(({code, stdout, stderr}) => {
-        if (code != 0 || stderr) {
-            errors.push('Azure CLI 2.0 not found - install Azure CLI 2.0 and log in');
-        }
-
-        prereqCheckSSHKeys(errors);
-
-        if (errors.length === 0) {
-            onSatisfied();
-        } else {
-            onFailure(errors);
-        }
-    });
+    if (sr.code === 0 && !sr.stderr) {
+        return { succeeded: true, result: null, error: [] };
+    } else {
+        return { succeeded: false, result: null, error: [sr.stderr] };
+    }
 }
 
-function prereqCheckSSHKeys(errors: Array<String>) {
-    const sshKeyFile = shell.combinePath(shell.home(), '.ssh/id_rsa');
-    if (!fs.existsSync(sshKeyFile)) {
+async function listClustersAsync(context: Context) : Promise<Errorable<string[]>> {
+    let query = '[?orchestratorProfile.orchestratorType==`Kubernetes`].{name:name,resourceGroup:resourceGroup}';
+    if (context.shell.isUnix()) {
+        query = `'${query}'`;
+    }
+    const sr = await context.shell.exec(`az acs list --query ${query} -ojson`);
+
+    if (sr.code === 0 && !sr.stderr) {
+        const clusters : string[] = JSON.parse(sr.stdout);
+        return { succeeded: true, result: clusters, error: [] };
+    } else {
+        return { succeeded: false, result: [], error: [sr.stderr] };
+    }
+
+}
+
+// export function verifyPrerequisites(onSatisfied, onFailure) {
+//     const errors = new Array<String>();
+
+//     shell.exec('az --help').then(({code, stdout, stderr}) => {
+//         if (code != 0 || stderr) {
+//             errors.push('Azure CLI 2.0 not found - install Azure CLI 2.0 and log in');
+//         }
+
+//         prereqCheckSSHKeys(errors);
+
+//         if (errors.length === 0) {
+//             onSatisfied();
+//         } else {
+//             onFailure(errors);
+//         }
+//     });
+// }
+
+function prereqCheckSSHKeys(context: Context, errors: Array<String>) {
+    const sshKeyFile = context.shell.combinePath(context.shell.home(), '.ssh/id_rsa');
+    if (!context.fs.existsSync(sshKeyFile)) {
         errors.push('SSH keys not found - expected key file at ' + sshKeyFile);
     }
 }
 
-export function selectSubscription(onSelection, onNone, onError) {
-    shell.exec("az account list --all --query [*].name -ojson").then(({code, stdout, stderr}) => {
-        if (code === 0 && !stderr) {  // az account list returns exit code 0 even if not logged in
-            const accountNames = JSON.parse(stdout);
-            switch (accountNames.length) {
-                case 0:
-                    onNone();
-                    break;
-                case 1:
-                    onSelection(accountNames[0]);
-                    break;
-                default:
-                    // We avoid using the default subscription because if the
-                    // user has just logged in then it will be set to the first
-                    // one in the list.  As configuration is an infrequent operation,
-                    // it's better to ask and be sure.
-                    host.showQuickPick(accountNames, { placeHolder: "Select Azure subscription" }).then((subName) => {
-                        if (!subName) {
-                            return;
-                        }
+// export function selectSubscription(onSelection, onNone, onError) {
+//     shell.exec("az account list --all --query [*].name -ojson").then(({code, stdout, stderr}) => {
+//         if (code === 0 && !stderr) {  // az account list returns exit code 0 even if not logged in
+//             const accountNames = JSON.parse(stdout);
+//             switch (accountNames.length) {
+//                 case 0:
+//                     onNone();
+//                     break;
+//                 case 1:
+//                     onSelection(accountNames[0]);
+//                     break;
+//                 default:
+//                     // We avoid using the default subscription because if the
+//                     // user has just logged in then it will be set to the first
+//                     // one in the list.  As configuration is an infrequent operation,
+//                     // it's better to ask and be sure.
+//                     host.showQuickPick(accountNames, { placeHolder: "Select Azure subscription" }).then((subName) => {
+//                         if (!subName) {
+//                             return;
+//                         }
 
-                        host.showWarningMessage('This will select ' + subName + ' for all Azure CLI operations.', 'OK').then((choice) => {
-                            if (choice !== 'OK') {
-                                return;
-                            }
+//                         host.showWarningMessage('This will select ' + subName + ' for all Azure CLI operations.', 'OK').then((choice) => {
+//                             if (choice !== 'OK') {
+//                                 return;
+//                             }
 
-                            shell.exec('az account set --subscription "' + subName + '"').then(({code, stdout, stderr}) => {
-                                if (code === 0 && !stderr) {
-                                    onSelection(subName);
-                                } else {
-                                    onError(stderr);
-                                }
-                            });
-                        });
-                    });
-            }
-        } else {
-            onError(stderr);
-        }
+//                             shell.exec('az account set --subscription "' + subName + '"').then(({code, stdout, stderr}) => {
+//                                 if (code === 0 && !stderr) {
+//                                     onSelection(subName);
+//                                 } else {
+//                                     onError(stderr);
+//                                 }
+//                             });
+//                         });
+//                     });
+//             }
+//         } else {
+//             onError(stderr);
+//         }
 
-    });
-}
+//     });
+// }
 
-export function selectKubernetesClustersFromActiveSubscription(onSelection, onNone, onError) {
-    let query = '[?orchestratorProfile.orchestratorType==`Kubernetes`].{name:name,resourceGroup:resourceGroup}';
-    if (shell.isUnix()) {
-        query = `'${query}'`;
-    }
-    shell.exec(`az acs list --query ${query} -ojson`).then(({code, stdout, stderr}) => {
-        if (code === 0 && !stderr) {
-            const clusters: Cluster[] = JSON.parse(stdout);
-            switch (clusters.length) {
-                case 0:
-                    onNone();
-                    break;
-                case 1:
-                    host.showInformationMessage(`This will configure Kubernetes to use cluster ${clusters[0].name}`, "OK").then((choice) => {
-                        if (choice == 'OK') {
-                            onSelection(clusters[0]);
-                        }
-                    });
-                    break;
-                default:
-                    let items = clusters.map((cluster) => clusterQuickPick(cluster));
-                    host.showQuickPick(items, { placeHolder: "Select Kubernetes cluster" }).then((item) => {
-                        if (item) {
-                            onSelection(item.cluster);
-                        }
-                    });
-            }
-        } else {
-            onError(stderr);
-        }
-    });
-}
+// export function selectKubernetesClustersFromActiveSubscription(onSelection, onNone, onError) {
+//     let query = '[?orchestratorProfile.orchestratorType==`Kubernetes`].{name:name,resourceGroup:resourceGroup}';
+//     if (shell.isUnix()) {
+//         query = `'${query}'`;
+//     }
+//     shell.exec(`az acs list --query ${query} -ojson`).then(({code, stdout, stderr}) => {
+//         if (code === 0 && !stderr) {
+//             const clusters: Cluster[] = JSON.parse(stdout);
+//             switch (clusters.length) {
+//                 case 0:
+//                     onNone();
+//                     break;
+//                 case 1:
+//                     host.showInformationMessage(`This will configure Kubernetes to use cluster ${clusters[0].name}`, "OK").then((choice) => {
+//                         if (choice == 'OK') {
+//                             onSelection(clusters[0]);
+//                         }
+//                     });
+//                     break;
+//                 default:
+//                     let items = clusters.map((cluster) => clusterQuickPick(cluster));
+//                     host.showQuickPick(items, { placeHolder: "Select Kubernetes cluster" }).then((item) => {
+//                         if (item) {
+//                             onSelection(item.cluster);
+//                         }
+//                     });
+//             }
+//         } else {
+//             onError(stderr);
+//         }
+//     });
+// }
 
-export function installCli(onInstall, onError) {
-    let installDir, installFile, cmd;
-    const cmdCore = 'az acs kubernetes install-cli';
-    const isWindows = shell.isWindows();
-    if (isWindows) {
-        // The default Windows install location requires admin permissions; install
-        // into a user profile directory instead. We process the path explicitly
-        // instead of using %LOCALAPPDATA% in the command, so that we can render the
-        // physical path when notifying the user.
-        const appDataDir = process.env['LOCALAPPDATA'];
-        installDir = appDataDir + '\\kubectl';
-        installFile = installDir + '\\kubectl.exe';
-        cmd = `(if not exist "${installDir}" md "${installDir}") & ${cmdCore} --install-location="${installFile}"`;
-    } else {
-        // Bah, the default Linux install location requires admin permissions too!
-        // Fortunately, $HOME/bin is on the path albeit not created by default.
-        const homeDir = process.env['HOME'];
-        installDir = homeDir + '/bin';
-        installFile = installDir + '/kubectl';
-        cmd = `mkdir -p "${installDir}" ; ${cmdCore} --install-location="${installFile}"`;
-    }
-    shell.exec(cmd).then(({code, stdout, stderr}) => {
-        if (code === 0) {
-            const onDefaultPath = !isWindows;
-            onInstall(installFile, onDefaultPath);
-        } else {
-            onError(stderr);
-        }
-    });
-}
+// export function installCli(onInstall, onError) {
+//     let installDir, installFile, cmd;
+//     const cmdCore = 'az acs kubernetes install-cli';
+//     const isWindows = shell.isWindows();
+//     if (isWindows) {
+//         // The default Windows install location requires admin permissions; install
+//         // into a user profile directory instead. We process the path explicitly
+//         // instead of using %LOCALAPPDATA% in the command, so that we can render the
+//         // physical path when notifying the user.
+//         const appDataDir = process.env['LOCALAPPDATA'];
+//         installDir = appDataDir + '\\kubectl';
+//         installFile = installDir + '\\kubectl.exe';
+//         cmd = `(if not exist "${installDir}" md "${installDir}") & ${cmdCore} --install-location="${installFile}"`;
+//     } else {
+//         // Bah, the default Linux install location requires admin permissions too!
+//         // Fortunately, $HOME/bin is on the path albeit not created by default.
+//         const homeDir = process.env['HOME'];
+//         installDir = homeDir + '/bin';
+//         installFile = installDir + '/kubectl';
+//         cmd = `mkdir -p "${installDir}" ; ${cmdCore} --install-location="${installFile}"`;
+//     }
+//     shell.exec(cmd).then(({code, stdout, stderr}) => {
+//         if (code === 0) {
+//             const onDefaultPath = !isWindows;
+//             onInstall(installFile, onDefaultPath);
+//         } else {
+//             onError(stderr);
+//         }
+//     });
+// }
 
-export function getCredentials(cluster: Cluster, onSuccess, onError) {
-    const cmd = 'az acs kubernetes get-credentials -n ' + cluster.name + ' -g ' + cluster.resourceGroup;
-    shell.exec(cmd).then(({code, stdout, stderr}) => {
-        if (code === 0 && !stderr) {
-            onSuccess();
-        } else {
-            onError(stderr);
-        }
-    });
+// export function getCredentials(cluster: Cluster, onSuccess, onError) {
+//     const cmd = 'az acs kubernetes get-credentials -n ' + cluster.name + ' -g ' + cluster.resourceGroup;
+//     shell.exec(cmd).then(({code, stdout, stderr}) => {
+//         if (code === 0 && !stderr) {
+//             onSuccess();
+//         } else {
+//             onError(stderr);
+//         }
+//     });
 
-}
+// }
 
-function clusterQuickPick(cluster): ClusterQuickPick {
-    return new ClusterQuickPick(cluster);
-}
+// function clusterQuickPick(cluster): ClusterQuickPick {
+//     return new ClusterQuickPick(cluster);
+// }
 
-interface Cluster {
-    readonly name: string;
-    readonly resourceGroup: string;
-}
+// interface Cluster {
+//     readonly name: string;
+//     readonly resourceGroup: string;
+// }
 
-class ClusterQuickPick implements QuickPickItem {
-    constructor(readonly cluster: Cluster) {
-    }
+// class ClusterQuickPick implements QuickPickItem {
+//     constructor(readonly cluster: Cluster) {
+//     }
 
-    get label() { return this.cluster.name; }
-    get description() { return 'Resource group ' + this.cluster.resourceGroup; }
-}
+//     get label() { return this.cluster.name; }
+//     get description() { return 'Resource group ' + this.cluster.resourceGroup; }
+// }
