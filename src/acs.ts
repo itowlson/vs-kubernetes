@@ -27,7 +27,7 @@ interface Errorable<T> {
 
 export interface UIRequest {
     readonly operationId: string;
-    readonly requestData: any;
+    readonly requestData: string;
 }
 
 interface StageData {
@@ -106,7 +106,7 @@ class UIProvider implements TextDocumentContentProvider, Advanceable {
     }
 }
 
-async function next(context: Context, sourceState: OperationState, requestData: any) : Promise<OperationState> {
+async function next(context: Context, sourceState: OperationState, requestData: string) : Promise<OperationState> {
     switch (sourceState.stage) {
         case OperationStage.Initial:
             return {
@@ -120,8 +120,9 @@ async function next(context: Context, sourceState: OperationState, requestData: 
                 stage: OperationStage.PromptForCluster
             };
         case OperationStage.PromptForCluster:
+            const selectedCluster = parseCluster(requestData);
             return {
-                last: await configureCluster(),
+                last: await configureCluster(context, selectedCluster.name, selectedCluster.resourceGroup),
                 stage: OperationStage.Complete
             };
         default:
@@ -130,6 +131,17 @@ async function next(context: Context, sourceState: OperationState, requestData: 
                 last: sourceState.last
             };
     }
+}
+
+function parseCluster(encoded: string) {
+    if (!encoded) {
+        return { resourceGroup: '', name: '' };  // TODO: this should never happen - fix tests to make it so it doesn't!
+    }
+    const delimiterPos = encoded.indexOf('/');
+    return {
+        resourceGroup: encoded.substr(0, delimiterPos),
+        name: encoded.substr(delimiterPos + 1)
+    };
 }
 
 async function getSubscriptionList(context: Context) : Promise<StageData> {
@@ -168,13 +180,83 @@ async function getClusterList(context: Context, subscription: string) : Promise<
     };
 }
 
-async function configureCluster() : Promise<StageData> {
-    // download kubectl
-    // get credentials
+async function configureCluster(context: Context, clusterName: string, clusterGroup: string) : Promise<StageData> {
+    const downloadCliPromise = downloadCli(context);
+    const getCredentialsPromise = getCredentials(context, clusterName, clusterGroup);
+
+    const [cliResult, credsResult] = await Promise.all([downloadCliPromise, getCredentialsPromise]);
+
+    const result = {
+        gotCli: cliResult.succeeded,
+        cliInstallDir: cliResult.installFile,
+        cliOnDefaultPath: cliResult.onDefaultPath,
+        cliError: cliResult.error,
+        gotCredentials: credsResult.succeeded,
+        credentialsError: credsResult.error
+    };
+    
     return {
         actionDescription: 'configuring Kubernetes',
-        result: { succeeded: true, result: '', error: [] }
+        result: { succeeded: cliResult.succeeded && credsResult.succeeded, result: result, error: [] }  // TODO: this ends up not fitting our structure very well - fix?
     };
+}
+
+async function downloadCli(context: Context) : Promise<any> {
+    const cliInfo = installCliInfo(context);
+
+    const sr = await context.shell.exec(cliInfo.commandLine);
+    if (sr.code === 0) {
+        return {
+            succeeded: true,
+            installFile: cliInfo.installFile,
+            onDefaultPath: !context.shell.isWindows()
+        };
+    } else {
+        return {
+            succeeded: false,
+            error: sr.stderr
+        }
+    }
+}
+
+async function getCredentials(context: Context, clusterName: string, clusterGroup: string) : Promise<any> {
+    const cmd = 'az acs kubernetes get-credentials -n ' + clusterName + ' -g ' + clusterGroup;
+    const sr = await context.shell.exec(cmd);
+
+    if (sr.code === 0 && !sr.stderr) {
+        return {
+            succeeded: true
+        };
+    } else {
+        return {
+            succeeded: false,
+            error: sr.stderr
+        }
+    }
+}
+
+function installCliInfo(context: Context) {
+    const cmdCore = 'az acs kubernetes install-cli';
+    const isWindows = context.shell.isWindows();
+    if (isWindows) {
+        // The default Windows install location requires admin permissions; install
+        // into a user profile directory instead. We process the path explicitly
+        // instead of using %LOCALAPPDATA% in the command, so that we can render the
+        // physical path when notifying the user.
+        const appDataDir = process.env['LOCALAPPDATA'];
+        const installDir = appDataDir + '\\kubectl';
+        const installFile = installDir + '\\kubectl.exe';
+        const cmd = `(if not exist "${installDir}" md "${installDir}") & ${cmdCore} --install-location="${installFile}"`;
+        return { installFile: installFile, commandLine: cmd };
+    } else {
+        // Bah, the default Linux install location requires admin permissions too!
+        // Fortunately, $HOME/bin is on the path albeit not created by default.
+        const homeDir = process.env['HOME'];
+        const installDir = homeDir + '/bin';
+        const installFile = installDir + '/kubectl';
+        const cmd = `mkdir -p "${installDir}" ; ${cmdCore} --install-location="${installFile}"`;
+        return { installFile: installFile, commandLine: cmd };
+    }
 }
 
 function render(operationId: string, state: OperationState) : string {
@@ -201,11 +283,37 @@ function renderInitial() : string {
 }
 
 function renderPromptForSubscription(operationId: string, last: StageData) : string {
-    if (last.result.succeeded) {
-        const subscriptions : string[] = last.result.result;
-        return `<!-- PromptForSubscription --><h1>Choose subscription</h1><p>${subscriptions.join(",")}</p><p><a href="${advanceUri(operationId, '')}">Next</a></p>`;
+    if (!last.result.succeeded) {
+        return `<!-- PromptForSubscription -->
+                <h1>Error ${last.actionDescription}</h1>
+                <p><span class='error'>The Azure command line failed.</span>  See below for the error message.  You may need to:</p>
+                <ul>
+                <li>Log into the Azure CLI (run az login in the terminal)</li>
+                <li>Install the Azure CLI <a href='https://docs.microsoft.com/cli/azure/install-azure-cli'>(see the instructions for your operating system)</a></li>
+                <li>Configure Kubernetes from the command line using the az acs command</li>
+                </ul>
+                <p><b>Details</b></p>
+                <p>${last.result.error}</p>`;
     }
-    return `<!-- PromptForSubscription --><h1>Error ${last.actionDescription}</h1><p>${last.result.error}</p>`;
+    const subscriptions : string[] = last.result.result;
+    const initialUri = advanceUri(operationId, subscriptions[0]);
+    const options = subscriptions.map((s) => `<option value=${s}>${s}</option>`).join('\n');
+    return `<!-- PromptForSubscription -->
+            <h1 id='h'>Choose subscription</h1>
+            ${styles()}
+            ${waitScript('Listing clusters')}
+            ${selectionChangedScript(operationId)}
+            <div id='content'>
+            <p>
+            Azure subscription: <select id='subsel' onchange='selchanged()'>
+            ${options}
+            </select>
+            </p>
+
+            <p>
+            <a id='nextlink' href='${initialUri}' onclick='promptWait()'>Next &gt;</a>
+            </p>
+            </div>`;
 }
 
 function renderPromptForCluster(operationId: string, last: StageData) : string {
@@ -224,10 +332,80 @@ function renderComplete(last: StageData) : string {
 }
 
 function internalError(error: string) : string {
-    return `<h1>Internal extension error</h1><p>An internal error occurred in the vs-kubernetes extension.  This is not an Azure or Kubernetes issue.  Please report error text '${error}' to the extension authors.</p>`
+    return `
+<h1>Internal extension error</h1>
+${styles()}
+<p>An internal error occurred in the vs-kubernetes extension.</p>
+<p>This is not an Azure or Kubernetes issue.  Please report error text '${error}' to the extension authors.</p>
+`
 }
 
-function advanceUri(operationId: string, requestData: any) : string {
+function styles() : string {
+    return `
+<style>
+.vscode-light a {
+    color: navy;
+}
+
+.vscode-dark a {
+    color: azure;
+}
+
+.vscode-light .error {
+    color: red;
+    font-weight: bold;
+}
+
+.vscode-dark .error {
+    color: red;
+    font-weight: bold;
+}
+
+.vscode-light .success {
+    color: green;
+    font-weight: bold;
+}
+
+.vscode-dark .success {
+    color: darkseagreen;
+    font-weight: bold;
+}
+</style>
+`;
+}
+
+function script(text: string) : string {
+    return `
+<script>
+${text}
+</script>
+`;
+}
+
+function waitScript(title: string) : string {
+    const js = `
+function promptWait() {
+    document.getElementById('h').innerText = '${title}';
+    document.getElementById('content').innerText = '';
+}
+`
+    return script(js);
+}
+
+function selectionChangedScript(operationId: string) : string {
+    const js = `
+function selectionChanged() {
+    var selectCtrl = document.getElementById('selector');
+    var selection = selectCtrl.options[selectCtrl.selectedIndex].value;
+    var request = '{"operationId":"${operationId}", "requestData":"' + selection + '"}';
+    document.getElementById('nextlink').href = encodeURI('command:extension.vsKubernetesConfigureFromAcs?' + request);
+}
+`;
+
+    return script(js);
+}
+
+function advanceUri(operationId: string, requestData: string) : string {
     const request : UIRequest = {
         operationId: operationId,
         requestData: requestData
