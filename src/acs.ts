@@ -291,6 +291,9 @@ function renderPromptForSubscription(operationId: string, last: StageData) : str
         return notifyCliError('PromptForSubscription', last);
     }
     const subscriptions : string[] = last.result.result;
+    if (!subscriptions || subscriptions.length === 0) {
+        return notifyNoOptions('PromptForSubscription', 'No subscriptions', 'There are no Azure subscriptions associated with your Azure login.');
+    }
     const initialUri = advanceUri(operationId, subscriptions[0]);
     const options = subscriptions.map((s) => `<option value="${s}">${s}</option>`).join('\n');
     return `<!-- PromptForSubscription -->
@@ -318,6 +321,9 @@ function renderPromptForCluster(operationId: string, last: StageData) : string {
         return notifyCliError('PromptForCluster', last);
     }
     const clusters : any[] = last.result.result;
+    if (!clusters || clusters.length === 0) {
+        return notifyNoOptions('PromptForCluster', 'No clusters', 'There are no Kubernetes clusters in the selected subscription.');
+    }
     const initialUri = advanceUri(operationId, formatCluster(clusters[0]));
     const options = clusters.map((c) => `<option value="${formatCluster(c)}">${c.name} (in ${c.resourceGroup})</option>`).join('\n');
     return `<!-- PromptForCluster -->
@@ -373,13 +379,21 @@ function notifyCliError(stageId: string, last: StageData) : string {
         <p>${last.result.error}</p>`;
 }
 
+function notifyNoOptions(stageId: string, title: string, message: string) : string {
+    return `
+<h1>${title}</h1>
+${styles()}
+<p class='error'>${message}</p>
+`;
+}
+
 function internalError(error: string) : string {
     return `
 <h1>Internal extension error</h1>
 ${styles()}
 <p class='error'>An internal error occurred in the vs-kubernetes extension.</p>
 <p>This is not an Azure or Kubernetes issue.  Please report error text '${error}' to the extension authors.</p>
-`
+`;
 }
 
 function styles() : string {
