@@ -133,6 +133,10 @@ async function next(context: Context, sourceState: OperationState, requestData: 
     }
 }
 
+function formatCluster(cluster: any) : string {
+    return cluster.resourceGroup + '/' + cluster.name;
+}
+
 function parseCluster(encoded: string) {
     if (!encoded) {
         return { resourceGroup: '', name: '' };  // TODO: this should never happen - fix tests to make it so it doesn't!
@@ -167,7 +171,7 @@ async function getClusterList(context: Context, subscription: string) : Promise<
     const login = await loginAsync(context, subscription);
     if (!login.succeeded) {
         return {
-            actionDescription: 'logging into subscriptin',
+            actionDescription: 'logging into subscription',
             result: login
         };
     }
@@ -188,7 +192,7 @@ async function configureCluster(context: Context, clusterName: string, clusterGr
 
     const result = {
         gotCli: cliResult.succeeded,
-        cliInstallDir: cliResult.installFile,
+        cliInstallFile: cliResult.installFile,
         cliOnDefaultPath: cliResult.onDefaultPath,
         cliError: cliResult.error,
         gotCredentials: credsResult.succeeded,
@@ -284,20 +288,11 @@ function renderInitial() : string {
 
 function renderPromptForSubscription(operationId: string, last: StageData) : string {
     if (!last.result.succeeded) {
-        return `<!-- PromptForSubscription -->
-                <h1>Error ${last.actionDescription}</h1>
-                <p><span class='error'>The Azure command line failed.</span>  See below for the error message.  You may need to:</p>
-                <ul>
-                <li>Log into the Azure CLI (run az login in the terminal)</li>
-                <li>Install the Azure CLI <a href='https://docs.microsoft.com/cli/azure/install-azure-cli'>(see the instructions for your operating system)</a></li>
-                <li>Configure Kubernetes from the command line using the az acs command</li>
-                </ul>
-                <p><b>Details</b></p>
-                <p>${last.result.error}</p>`;
+        return notifyCliError('PromptForSubscription', last);
     }
     const subscriptions : string[] = last.result.result;
     const initialUri = advanceUri(operationId, subscriptions[0]);
-    const options = subscriptions.map((s) => `<option value=${s}>${s}</option>`).join('\n');
+    const options = subscriptions.map((s) => `<option value="${s}">${s}</option>`).join('\n');
     return `<!-- PromptForSubscription -->
             <h1 id='h'>Choose subscription</h1>
             ${styles()}
@@ -305,7 +300,34 @@ function renderPromptForSubscription(operationId: string, last: StageData) : str
             ${selectionChangedScript(operationId)}
             <div id='content'>
             <p>
-            Azure subscription: <select id='subsel' onchange='selchanged()'>
+            Azure subscription: <select id='selector' onchange='selectionChanged()'>
+            ${options}
+            </select>
+            </p>
+
+            <p><b>Important! The selected subscription will be set as the active subscription for the Azure CLI.</b></p>
+
+            <p>
+            <a id='nextlink' href='${initialUri}' onclick='promptWait()'>Next &gt;</a>
+            </p>
+            </div>`;
+}
+
+function renderPromptForCluster(operationId: string, last: StageData) : string {
+    if (!last.result.succeeded) {
+        return notifyCliError('PromptForCluster', last);
+    }
+    const clusters : any[] = last.result.result;
+    const initialUri = advanceUri(operationId, formatCluster(clusters[0]));
+    const options = clusters.map((c) => `<option value="${formatCluster(c)}">${c.name} (in ${c.resourceGroup})</option>`).join('\n');
+    return `<!-- PromptForCluster -->
+            <h1 id='h'>Choose cluster</h1>
+            ${styles()}
+            ${waitScript('Configuring Kubernetes')}
+            ${selectionChangedScript(operationId)}
+            <div id='content'>
+            <p>
+            Kubernetes cluster: <select id='selector' onchange='selectionChanged()'>
             ${options}
             </select>
             </p>
@@ -316,26 +338,46 @@ function renderPromptForSubscription(operationId: string, last: StageData) : str
             </div>`;
 }
 
-function renderPromptForCluster(operationId: string, last: StageData) : string {
-    if (last.result.succeeded) {
-        const clusters : string[] = last.result.result;
-        return `<!-- PromptForCluster --><h1>Choose cluster</h1><p>${clusters.join(",")}</p><p><a href="${advanceUri(operationId, '')}">Next</a></p>`;
-    }
-    return `<!-- PromptForCluster --><h1>Error ${last.actionDescription}</h1><p>${last.result.error}</p>`;
+function renderComplete(last: StageData) : string {
+    const title = last.result.succeeded ? 'Configuration completed' : `Error ${last.actionDescription}`;
+    const configResult = last.result.result;
+    const pathMessage = configResult.cliOnDefaultPath ? '' :
+        '<p>This location is not on your system PATH. Add this directory to your path, or set the VS Code <b>vs-kubernetes.kubectl-path</b> config setting.</p>'
+    const getCliOutput = configResult.gotCli ?
+        `<p class='success'>kubectl installed at ${configResult.cliInstallFile}</p>${pathMessage}` :
+        `<p class='error'>An error occurred while downloading kubectl.</p>
+         <p><b>Details</b></p>
+         <p>${configResult.cliError}</p>`;
+    const getCredsOutput = last.result.result.gotCredentials ?
+        `<p class='success'>Successfully configured kubectl with Azure Container Service cluster credentials.</p>` :
+        `<p class='error'>An error occurred while getting Azure Container Service cluster credentials.</p>
+         <p><b>Details</b></p>
+         <p>${configResult.credentialsError}</p>`;
+    return `<!-- Complete -->
+            <h1>${title}</h1>
+            ${styles()}
+            ${getCliOutput}
+            ${getCredsOutput}`;
 }
 
-function renderComplete(last: StageData) : string {
-    if (last.result.succeeded) {
-        return `<!-- Complete --><h1>Configuration complete</h1><p>More info here</p>`;
-    }
-    return `<!-- Complete --><h1>Error ${last.actionDescription}</h1><p>${last.result.error}</p>`;
+function notifyCliError(stageId: string, last: StageData) : string {
+    return `<!-- ${stageId} -->
+        <h1>Error ${last.actionDescription}</h1>
+        <p><span class='error'>The Azure command line failed.</span>  See below for the error message.  You may need to:</p>
+        <ul>
+        <li>Log into the Azure CLI (run az login in the terminal)</li>
+        <li>Install the Azure CLI <a href='https://docs.microsoft.com/cli/azure/install-azure-cli'>(see the instructions for your operating system)</a></li>
+        <li>Configure Kubernetes from the command line using the az acs command</li>
+        </ul>
+        <p><b>Details</b></p>
+        <p>${last.result.error}</p>`;
 }
 
 function internalError(error: string) : string {
     return `
 <h1>Internal extension error</h1>
 ${styles()}
-<p>An internal error occurred in the vs-kubernetes extension.</p>
+<p class='error'>An internal error occurred in the vs-kubernetes extension.</p>
 <p>This is not an Azure or Kubernetes issue.  Please report error text '${error}' to the extension authors.</p>
 `
 }
@@ -456,7 +498,7 @@ async function listClustersAsync(context: Context) : Promise<Errorable<string[]>
     const sr = await context.shell.exec(`az acs list --query ${query} -ojson`);
 
     if (sr.code === 0 && !sr.stderr) {
-        const clusters : string[] = JSON.parse(sr.stdout);
+        const clusters : any[] = JSON.parse(sr.stdout);
         return { succeeded: true, result: clusters, error: [] };
     } else {
         return { succeeded: false, result: [], error: [sr.stderr] };
