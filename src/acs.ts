@@ -155,7 +155,7 @@ async function getSubscriptionList(context: Context) : Promise<StageData> {
         return {
             actionDescription: 'checking prerequisites',
             result: { succeeded: false, result: false, error: prerequisiteErrors }
-        }
+        };
     }
 
     // list subs
@@ -219,7 +219,7 @@ async function downloadCli(context: Context) : Promise<any> {
         return {
             succeeded: false,
             error: sr.stderr
-        }
+        };
     }
 }
 
@@ -235,7 +235,7 @@ async function getCredentials(context: Context, clusterName: string, clusterGrou
         return {
             succeeded: false,
             error: sr.stderr
-        }
+        };
     }
 }
 
@@ -348,7 +348,7 @@ function renderComplete(last: StageData) : string {
     const title = last.result.succeeded ? 'Configuration completed' : `Error ${last.actionDescription}`;
     const configResult = last.result.result;
     const pathMessage = configResult.cliOnDefaultPath ? '' :
-        '<p>This location is not on your system PATH. Add this directory to your path, or set the VS Code <b>vs-kubernetes.kubectl-path</b> config setting.</p>'
+        '<p>This location is not on your system PATH. Add this directory to your path, or set the VS Code <b>vs-kubernetes.kubectl-path</b> config setting.</p>';
     const getCliOutput = configResult.gotCli ?
         `<p class='success'>kubectl installed at ${configResult.cliInstallFile}</p>${pathMessage}` :
         `<p class='error'>An error occurred while downloading kubectl.</p>
@@ -444,7 +444,7 @@ function promptWait() {
     document.getElementById('h').innerText = '${title}';
     document.getElementById('content').innerText = '';
 }
-`
+`;
     return script(js);
 }
 
