@@ -1,5 +1,9 @@
 import { ShellResult } from '../src/shell';
 
+function nop(...args : any[]) {
+    return [];
+}
+
 export interface FakeHostSettings {
     errors? : string[];
     warnings? : string[];
@@ -9,6 +13,7 @@ export interface FakeHostSettings {
 
 export interface FakeFSSettings {
     existentPaths? : string[];
+    onDirSync? : (path: string) => string[];
 }
 
 export interface FakeCommand {
@@ -21,6 +26,7 @@ export interface FakeCommand {
 export interface FakeShellSettings {
     isWindows? : boolean;
     isUnix? : boolean;
+    home? : string;
     recognisedCommands? : FakeCommand[];
     execCallback?: (cmd : string) => ShellResult;
 }
@@ -55,6 +61,7 @@ export function host(settings : FakeHostSettings = {}) : any {
 export function fs(settings : FakeFSSettings = {}) : any {
     return {
         existsSync: (path) => (settings.existentPaths || []).indexOf(path) >= 0,
+        dirSync: (path) => (settings.onDirSync || nop)(path),
     }
 }
 
@@ -62,6 +69,8 @@ export function shell(settings : FakeShellSettings = {}) : any {
     return {
         isWindows: () => (settings.isWindows === undefined ? true : settings.isWindows),
         isUnix: () => (settings.isUnix === undefined ? false : settings.isUnix),
+        home: () => settings.home || (settings.isWindows ? 'z:\\home' : '/fake/path/to/home'),
+        combinePath: (b: string, r: string) => (settings.isWindows ? `${b}\\${r}` : `${b}/${r}`),
         execCore: (cmd, opts) => fakeShellExec(settings, cmd),
         exec: (cmd) => fakeShellExec(settings, cmd),
     }

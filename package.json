@@ -29,6 +29,8 @@
         "onCommand:extension.vsKubernetesDebug",
         "onCommand:extension.vsKubernetesRemoveDebug",
         "onCommand:extension.vsKubernetesConfigureFromAcs",
+        "onCommand:extension.vsKubernetesDraftCreate",
+        "onCommand:extension.vsKubernetesDraftUp",
         "onView:extension.vsKubernetesExplorer"
     ],
     "main": "./out/src/extension",
@@ -50,6 +52,11 @@
                             "type": "string",
                             "default": null,
                             "description": "File path to a kubectl binary."
+                        },
+                        "vs-kubernetes.draft-path": {
+                            "type": "string",
+                            "default": null,
+                            "description": "File path to a draft binary."
                         }
                     }
                 },
@@ -170,6 +177,14 @@
             "command": "extension.vsKubernetesConfigureFromAcs",
             "title": "Kubernetes Configure from ACS"
         }, {
+            "command": "extension.vsKubernetesDraftCreate",
+            "title": "Create",
+            "category": "Kubernetes Draft"
+        }, {
+            "command": "extension.vsKubernetesDraftUp",
+            "title": "Up",
+            "category": "Kubernetes Draft"
+        }, {
             "command": "extension.vsKubernetesRefreshExplorer",
             "title": "Refresh"
         }]
@@ -185,7 +200,8 @@
         "dockerfile-parse": "^0.2.0",
         "k8s": "^0.4.12",
         "tmp": "^0.0.31",
-        "pluralize": "^4.0.0"
+        "pluralize": "^4.0.0",
+        "uuid": "^3.1.0"
     },
     "devDependencies": {
         "@types/mocha": "^2.2.32",

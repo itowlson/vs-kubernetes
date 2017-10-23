@@ -8,6 +8,7 @@
             true, "as-needed"
         ],
         "prefer-for-of": true,
+        //"semicolon": [true, "always"],
         "arrow-parens": true
     }
 }

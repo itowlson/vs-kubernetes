@@ -13,22 +13,26 @@ import { fs } from './fs';
 import * as yaml from 'js-yaml';
 import * as dockerfileParse from 'dockerfile-parse';
 import * as tmp from 'tmp';
+import * as uuid from 'uuid';
 
 // Internal dependencies
 import { host } from './host';
 import * as explainer from './explainer';
-import { shell } from './shell';
+import { shell, ShellResult } from './shell';
 import * as acs from './acs';
 import * as kuberesources from './kuberesources';
 import * as docker from './docker';
 import * as kubeconfig from './kubeconfig';
 import { create as kubectlCreate, Kubectl } from './kubectl';
 import * as explorer from './explorer';
+import { create as draftCreate, Draft } from './draft';
 
 let explainActive = false;
 let swaggerSpecPromise = null;
 
 const kubectl = kubectlCreate(host, fs, shell);
+const draft = draftCreate(host, fs, shell);
+const acsui = acs.uiProvider(fs, shell);
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
@@ -58,7 +62,10 @@ export function activate(context) {
         vscode.commands.registerCommand('extension.vsKubernetesDebug', debugKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesRemoveDebug', removeDebugKubernetes),
         vscode.commands.registerCommand('extension.vsKubernetesConfigureFromAcs', configureFromAcsKubernetes),
+        vscode.commands.registerCommand('extension.vsKubernetesDraftCreate', execDraftCreate),
+        vscode.commands.registerCommand('extension.vsKubernetesDraftUp', execDraftUp),
         vscode.commands.registerCommand('extension.vsKubernetesRefreshExplorer', () => treeProvider.refresh()),
+        vscode.workspace.registerTextDocumentContentProvider(acs.uriScheme, acsui),
         vscode.languages.registerHoverProvider(
             { language: 'json', scheme: 'file' },
             { provideHover: provideHoverJson }
@@ -1151,100 +1158,95 @@ function removeDebugKubernetes() {
     });
 }
 
-function configureFromAcsKubernetes() {
-    acsShowProgress("Verifying prerequisites...");
-    acs.verifyPrerequisites(
-        () => {
-            acsSelectSubscription();
-        },
-        (errs : Array<string>) => {
-            if (errs.length === 1) {
-                acsShowError('Missing prerequisite for Kubernetes configuration. ' + errs[0], errs[0]);
-            } else {
-                acsShowError('Missing prerequisites for Kubernetes configuration. See Output window for details.', errs.join('\n'));
-            }
-        }
-    );
-}
-
-function acsSelectSubscription() {
-    acsShowProgress("Retrieving Azure subscriptions...");
-    acs.selectSubscription(
-        (subName) => {
-            acsSelectCluster(subName);
-        },
-        () => {
-            vscode.window.showInformationMessage('No Azure subscriptions.');
-        },
-        (err) => {
-            acsShowError('Unable to list Azure subscriptions. See Output window for error.', err);
-        }
-    );
-}
-
-function acsSelectCluster(subName) {
-    acsShowProgress("Retrieving Azure Container Service Kubernetes clusters...");
-    acs.selectKubernetesClustersFromActiveSubscription(
-        (cluster) => {
-            acsInstallCli();
-            acsGetCredentials(cluster);
-        },
-        () => {
-            vscode.window.showInformationMessage('No Kubernetes clusters in subscription ' + subName);
-        },
-        (err) => {
-            acsShowError('Unable to select a Kubernetes cluster in ' + subName + '. See Output window for error.', err);
-         }
-     );
-}
-
-function acsInstallCli() {
-    acsShowProgress("Downloading kubectl command line tool...");
-    acs.installCli(
-        (installLocation, onDefaultPath) => {
-            let message = 'kubectl installed.';
-            let details = 'kubectl installation location: ' + installLocation;
-            if (onDefaultPath) {
-                message = message + ' See Output window for details.';
-            } else {
-                message = message + ' See Output window for additional installation info.';
-                details = details + '\n***NOTE***: This location is not on your system PATH.\nAdd this directory to your path, or set the VS Code\n*vs-kubernetes.kubectl-path* config setting.';
-                acsShowOutput(details);
-            }
-            vscode.window.showInformationMessage(message);
-        },
-        (err) => {
-            acsShowError('Unable to download kubectl. See Output window for error.', err);
-        }
-    );
-}
-
-function acsGetCredentials(cluster) {
-    acsShowProgress("Configuring Kubernetes credentials for " + cluster.name + "...");
-    acs.getCredentials(cluster,
-        () => {
-            vscode.window.showInformationMessage('Successfully configured kubectl with Azure Container Service cluster credentials.');
-        },
-        (err) => {
-            acsShowError('Unable to get Azure Container Service cluster credentials. See Output window for error.', err);
-        });
-}
-
-function acsShowProgress(message) {
-    acsShowOutput(message);
-}
-
-function acsShowError(message, err) {
-    vscode.window.showErrorMessage(message);
-    acsShowOutput(err);
-}
-
-let _acsOutputChannel : vscode.OutputChannel = null;
-
-function acsShowOutput(message) {
-    if (!_acsOutputChannel) {
-        _acsOutputChannel = vscode.window.createOutputChannel('Kubernetes Configure from ACS');
+async function configureFromAcsKubernetes(request? : acs.UIRequest) {
+    if (request) {
+        await acsui.next(request);
+    } else {
+        const newId : string = uuid.v4();
+        acsui.start(newId);
+        vscode.commands.executeCommand('vscode.previewHtml', acs.operationUri(newId), 2, "Configure Kubernetes");
+        await acsui.next({ operationId: newId, requestData: undefined });
     }
-    _acsOutputChannel.appendLine(message);
-    _acsOutputChannel.show();
+}
+
+async function execDraftCreate() {
+    if (vscode.workspace.rootPath === undefined) {
+        vscode.window.showErrorMessage('This command requires an open folder.');
+        return;
+    }
+    if (draft.isFolderMapped(vscode.workspace.rootPath)) {
+        vscode.window.showInformationMessage('This folder is already configured for draft. Run draft up to deploy.');
+        return;
+    }
+    if (!(await draft.checkPresent())) {
+        return;
+    }
+    const proposedAppName = path.basename(vscode.workspace.rootPath);
+    const appName = await vscode.window.showInputBox({ value: proposedAppName, prompt: "Choose a name for the Helm release"});
+    if (appName) {
+        await execDraftCreateApp(appName, undefined);
+    }
+}
+
+enum DraftCreateResult {
+    Succeeded,
+    Fatal,
+    NeedsPack,
+}
+
+async function execDraftCreateApp(appName : string, pack? : string) : Promise<void> {
+    const packOpt = pack ? ` -p ${pack}` : '';
+    const dcResult = await draft.invoke(`create -a ${appName} ${packOpt}`);
+
+    switch (draftCreateResult(dcResult, !!pack)) {
+        case DraftCreateResult.Succeeded:
+            host.showInformationMessage("draft " + dcResult.stdout);
+            return;
+        case DraftCreateResult.Fatal:
+            host.showErrorMessage(`draft failed: ${dcResult.stderr}`);
+            return;
+        case DraftCreateResult.NeedsPack:
+            const packs = await draft.packs();
+            if (packs && packs.length > 0) {
+                const packSel = await host.showQuickPick(packs, { placeHolder: `Choose the Draft starter pack for ${appName}` });
+                if (packSel) {
+                    await execDraftCreateApp(appName, packSel);
+                }
+            } else {
+                host.showErrorMessage("Unable to determine starter pack, and no starter packs found to choose from.");
+            }
+            return;
+    }
+}
+
+function draftCreateResult(sr : ShellResult, hadPack : boolean) {
+    if (sr.code === 0) {
+        return DraftCreateResult.Succeeded;
+    }
+    if (!hadPack && sr.stderr.indexOf('Unable to select a starter pack') >= 0) {
+        return DraftCreateResult.NeedsPack;
+    }
+    return DraftCreateResult.Fatal;
+}
+
+async function execDraftUp() {
+    if (vscode.workspace.rootPath === undefined) {
+        vscode.window.showErrorMessage('This command requires an open folder.');
+        return;
+    }
+    if (!draft.isFolderMapped(vscode.workspace.rootPath)) {
+        vscode.window.showInformationMessage('This folder is not configured for draft. Run draft create to configure it.');
+        return;
+    }
+    if (!(await draft.checkPresent())) {
+        return;
+    }
+    // if it's already running... how can we tell?
+
+    // TODO: If non-watching then we should pipe the output to an Output window rather than using
+    // a terminal which exits when the command exits - but then do we have to manage the
+    // process?
+    const draftPath = await draft.path();
+    const term = vscode.window.createTerminal(`draft up`, draftPath, [ 'up' ]);  // TODO: this doesn't show output colourised - how to do that in a safe portable way?
+    term.show(true);
 }
